@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Herbanário - Gestão de Plantas</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- MODAL DE AUTENTICAÇÃO -->
+        <div id="auth-modal" class="modal-overlay">
+            <div class="modal-card">
+                <h2 id="auth-title">Entrar no Herbanário</h2>
+                <div class="tabs">
+                    <button id="tab-login" class="active" onclick="alternarAuth('login')">Entrar</button>
+                    <button id="tab-register" onclick="alternarAuth('register')">Registar</button>
+                </div>
+                
+                <form id="form-auth" onsubmit="submeterAuth(event)">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="auth-email" required placeholder="exemplo@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Palavra-passe</label>
+                        <input type="password" id="auth-pass" required placeholder="••••••••">
+                    </div>
+                    <div class="form-group" id="group-nome" style="display: none;">
+                        <label>Nome do Utilizador</label>
+                        <input type="text" id="auth-nome" placeholder="O teu nome">
+                    </div>
+                    <div class="form-group" id="group-nivel" style="display: none;">
+                        <label>Nível de Experiência</label>
+                        <select id="auth-nivel">
+                            <option value="Iniciante">Iniciante (Plantas fáceis)</option>
+                            <option value="Intermédio">Intermédio (Cuidado moderado)</option>
+                            <option value="Avançado">Avançado (Plantas exigentes)</option>
+                        </select>
+                    </div>
+                    <p id="auth-error" class="auth-error hidden" role="alert"></p>
+                    <button type="submit" class="btn btn-primary" id="btn-auth-submit">Entrar</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ECRÃ 1: HOJE (DASHBOARD) -->
+        <section id="screen-hoje" class="app-screen">
+            <header class="screen-header">
+                <span class="kicker">O Teu Jardim • Hoje</span>
+                <h1 id="boas-vindas-user">Bom dia!</h1>
+            </header>
+            
+            <div class="rega-card" id="card-destaque-rega">
+                <span class="badge-tag">Rega de Hoje</span>
+                <h3 id="rega-destaque-titulo">A carregar...</h3>
+                <p id="rega-destaque-desc">A verificar as tuas plantas.</p>
+                <div class="inline-actions">
+                    <button class="btn btn-accent" onclick="regardestaque()">Reguei agora</button>
+                    <button class="btn btn-soft" onclick="reagendarDestaque()">Reagendar (+1 dia)</button>
+                </div>
+            </div>
+
+            <div class="section-title"><h3>A Minha Coleção Resumida</h3></div>
+            <div class="plant-grid" id="lista-hoje-colecao"></div>
+        </section>
+
+        <!-- ECRÃ 2: DESCOBRIR -->
+        <section id="screen-descobrir" class="app-screen hidden">
+            <header class="screen-header">
+                <span class="kicker">Encontra a tua próxima planta</span>
+                <h1>Descobrir</h1>
+            </header>
+            <div class="tabs-filter">
+                <button class="chip active" onclick="filtrarRecomendacoes('Todos')">Todas</button>
+                <button class="chip" onclick="filtrarRecomendacoes('Iniciante')">Iniciante</button>
+                <button class="chip" onclick="filtrarRecomendacoes('Intermédio')">Intermédio</button>
+                <button class="chip" onclick="filtrarRecomendacoes('Avançado')">Avançado</button>
+            </div>
+            <div class="plant-grid" id="lista-recomendacoes"></div>
+        </section>
+
+        <!-- ECRÃ 3: LOJA -->
+        <section id="screen-loja" class="app-screen hidden">
+            <header class="screen-header">
+                <span class="kicker">Catálogo & Loja</span>
+                <h1>A Loja</h1>
+            </header>
+            <div class="search-box">
+                <input type="text" id="search-loja" placeholder="Pesquisar plantas..." oninput="filtrarLoja()">
+            </div>
+            <div class="plant-grid" id="lista-loja"></div>
+        </section>
+
+        <!-- ECRÃ 4: COLEÇÃO -->
+        <section id="screen-colecao" class="app-screen hidden">
+            <header class="screen-header header-with-action">
+                <div>
+                    <span class="kicker">A tua coleção pessoal</span>
+                    <h1>As Minhas Plantas</h1>
+                </div>
+                <button class="btn-icon" onclick="abrirModalPlanta()">＋ Nova</button>
+            </header>
+            <div class="plant-grid" id="lista-minhas-plantas"></div>
+        </section>
+
+        <!-- ECRÃ 5: LEMBRETES -->
+        <section id="screen-lembretes" class="app-screen hidden">
+            <header class="screen-header">
+                <span class="kicker">Gestão de Cuidados</span>
+                <h1>Lembretes de Rega</h1>
+            </header>
+            <div id="lista-lembretes" class="lembretes-list"></div>
+        </section>
+
+        <!-- ECRÃ 6: PERFIL -->
+        <section id="screen-perfil" class="app-screen hidden">
+            <header class="screen-header">
+                <span class="kicker">Definições da Conta</span>
+                <h1>O Meu Perfil</h1>
+            </header>
+            <div class="profile-card">
+                <div class="avatar" id="profile-avatar">M</div>
+                <div class="profile-info">
+                    <h3 id="profile-nome">Utilizador</h3>
+                    <p id="profile-email" class="muted">email@exemplo.com</p>
+                    <span class="chip-nivel" id="profile-nivel">Nível: Iniciante</span>
+                </div>
+            </div>
+            <button class="btn btn-danger add-wide" onclick="logout()">Terminar Sessão</button>
+        </section>
+
+        <!-- MODAL CRUD -->
+        <div id="modal-planta" class="modal-overlay hidden">
+            <div class="modal-card">
+                <h2 id="modal-planta-title">Adicionar Planta</h2>
+                <form id="form-planta" onsubmit="guardarFormPlanta(event)">
+                    <input type="hidden" id="planta-id">
+                    <div class="form-group">
+                        <label>Nome Comum</label>
+                        <input type="text" id="planta-nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nome Científico</label>
+                        <input type="text" id="planta-cientifico">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select id="planta-tipo">
+                            <option value="interior">Interior</option>
+                            <option value="exterior">Exterior</option>
+                            <option value="jardim">Jardim</option>
+                            <option value="ornamental">Ornamental</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nível</label>
+                        <select id="planta-nivel">
+                            <option value="Iniciante">Iniciante</option>
+                            <option value="Intermédio">Intermédio</option>
+                            <option value="Avançado">Avançado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Intervalo Rega (Dias)</label>
+                        <input type="number" id="planta-intervalo" value="7" required>
+                    </div>
+                    <div class="form-group">
+                        <label>URL Imagem</label>
+                        <input type="url" id="planta-img">
+                    </div>
+                    <div class="form-group">
+                        <label>Dicas</label>
+                        <textarea id="planta-dicas" rows="2"></textarea>
+                    </div>
+                    <div class="inline-actions">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-soft" onclick="fecharModalPlanta()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="toast" class="toast">Mensagem...</div>
+
+        <!-- NAVEGAÇÃO INFERIOR -->
+        <nav class="nav-bottom">
+            <button class="nav-item active" onclick="navegar('hoje')">🏠 <span>Hoje</span></button>
+            <button class="nav-item" onclick="navegar('descobrir')">🔍 <span>Descobrir</span></button>
+            <button class="nav-item" onclick="navegar('loja')">🛍️ <span>Loja</span></button>
+            <button class="nav-item" onclick="navegar('colecao')">🌿 <span>Coleção</span></button>
+            <button class="nav-item" onclick="navegar('lembretes')">💧 <span>Regas</span></button>
+            <button class="nav-item" onclick="navegar('perfil')">👤 <span>Perfil</span></button>
+        </nav>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html

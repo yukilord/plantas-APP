@@ -1,0 +1,14 @@
+:root {
+    --primary-color: #0d4429;
+    --accent-color: #e07a5f;
+    --bg-color: #f3f5ee;
+    --text-dark: #111111;
+    --text-muted: #6b7280;
+    --radius: 24px;
+    --max-width: 430px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", Tahoma, sans-serif; }
+body { background: #dfe6d8; color: var(--text-dark); display: flex; justify-content: center; min-height: 100vh; }
+.app-container { width: 100%; max-width: var(--max-width); min-height: 100vh; position: relative; background-color: var(--bg-color); overflow-x: hidden; }
+.app-screen { padding-bottom: 110px; min-height: 100vh; }
+.hidden { display: none !important; }
