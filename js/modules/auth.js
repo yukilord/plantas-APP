@@ -56,3 +56,21 @@ export function atualizarNivel(nivel) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(atualizado));
     return atualizado;
 }
+
+export function atualizarPerfil(email, dados) {
+    const emailNormalizado = email.toLowerCase();
+    const users = lerUsers();
+    const indice = users.findIndex((user) => user.email === emailNormalizado);
+    if (indice < 0) throw new Error("Conta não encontrada.");
+
+    const atualizado = { ...users[indice], ...dados, email: emailNormalizado };
+    users[indice] = atualizado;
+    gravarUsers(users);
+
+    const sessao = getSessao();
+    if (sessao?.email === emailNormalizado) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(atualizado));
+    }
+
+    return atualizado;
+}
