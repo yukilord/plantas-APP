@@ -31,6 +31,15 @@
     };
     const gravarUsers = (lista) => localStorage.setItem(USERS_KEY, JSON.stringify(lista));
 
+    function garantirContaTeste() {
+        const lista = users();
+        if (lista.some((u) => String(u.email || '').trim().toLowerCase() === 'teste@teste.pt')) return;
+        lista.push({ nome: 'Teste', email: 'teste@teste.pt', password: 'teste123', nivel: 'Iniciante' });
+        gravarUsers(lista);
+    }
+
+    garantirContaTeste();
+
     function abrirSessao(u) {
         const sessao = { nome: u.nome, email: u.email, nivel: u.nivel };
         localStorage.setItem(SESSAO_KEY, JSON.stringify(sessao));

@@ -19,3 +19,6 @@ O site abre automaticamente em <http://127.0.0.1:8000/>. Para o fechar, prime
 
 Na primeira visita, escolhe **Registar** para criar uma conta. Os dados da
 aplicação ficam guardados localmente no navegador.
+
+Também está disponível uma conta de demonstração criada localmente em cada
+navegador: **teste@teste.pt** (palavra-passe: **teste123**).
