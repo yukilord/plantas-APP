@@ -2,6 +2,10 @@
 
 Aplicação web para acompanhar uma coleção de plantas, regas e cuidados.
 
+Inclui fichas de cultivo detalhadas, lembretes pessoais de texto livre, um
+diagnóstico orientativo por sintomas baseado em regras simples e um cartão de
+cuidados para guardar como imagem ou partilhar.
+
 ## Abrir o site
 
 No Windows, abre uma janela do PowerShell na pasta do projeto e executa:

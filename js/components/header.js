@@ -7,7 +7,6 @@
         leaf: '<path d="M5 20C4 11 9 4 20 4c0 11-7 16-15 16zM5 20l9-9"/>',
         drop: '<path d="M12 3s6.5 6.6 6.5 11a6.5 6.5 0 0 1-13 0C5.5 9.6 12 3 12 3z"/>',
         plus: '<path d="M12 5v14M5 12h14"/>',
-        bag: '<path d="M5 8h14l-1 12H6zM9 8V7a3 3 0 0 1 6 0v1"/>',
         user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
         sprout: '<path d="M12 21v-9M12 12c0-4 3-6 7-6 0 4-3 6-7 6zM12 15c0-3-2.5-5-6-5 0 3 2.5 5 6 5z"/>'
     };
@@ -25,7 +24,7 @@
     const POSICAO = { hoje: 0, descobrir: 1, colecao: 3, lembretes: 4 };
 
     const ATALHOS = [
-        ["navegar('loja')", 'Loja', 'bag', -94, -82, 0],
+        ["navegar('lembretes-pessoais')", 'Lembretes', 'leaf', -94, -82, 0],
         ["novaPlanta()", 'Nova', 'sprout', 0, -124, 1],
         ["navegar('perfil')", 'Perfil', 'user', 94, -82, 2]
     ];

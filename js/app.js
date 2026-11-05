@@ -1,14 +1,14 @@
 ﻿(function () {
     const api = window.api;
     const { NIVEIS, TIPOS } = api;
-    const { $, esc, eur, opt, diasAte } = api;
+    const { $, esc, opt, diasAte } = api;
     const { initHeader, marcarNav, fan } = window.herbanarioHeader;
     const { visual, cartao, chips, renderDica } = window.herbanarioFeed;
 
     let utilizadorAtual = null;
     let ecra = 'hoje';
     let bloqueado = false;
-    const F = { n: 'Todos', t: 'Todos', q: '' };
+    const F = { n: 'Todos' };
 
     document.addEventListener('DOMContentLoaded', () => {
         aplicarTema();
@@ -50,7 +50,7 @@
     const jaTem = (especieId) => api.getColecao(utilizadorAtual.email).some((p) => p.especieId === especieId);
     const inicial = () => esc((utilizadorAtual.nome || 'H')[0].toUpperCase());
     const cab = (k, t, extra = '') => `<div class="hd"><div><span class="k">${k}</span><h1>${t}</h1></div>${extra}</div>`;
-    const vazio = '<div class="em0">Ainda não tens plantas. Explora a Loja ou toca em ＋ para criar uma.</div>';
+    const vazio = '<div class="em0">Ainda não tens plantas. Explora Descobrir ou toca em ＋ para criar uma.</div>';
 
     function verificarSessao() {
         const user = api.getSessao();
@@ -86,7 +86,6 @@
                 const nome = $('a3').value.trim() || email.split('@')[0];
                 const nivel = $('a4').value;
                 utilizadorAtual = api.registar({ nome, email, password, nivel });
-                api.semear(utilizadorAtual.email, nivel);
             } else {
                 utilizadorAtual = api.login(email, password);
             }
@@ -119,6 +118,155 @@
 
     window.filtrar = (chave, valor) => { F[chave] = valor; desenhar(); };
 
+    window.executarDiagnostico = () => {
+        const resultado = api.diagnosticar({
+            sintoma: $('diag-sintoma').value,
+            solo: $('diag-solo').value,
+            luz: $('diag-luz').value
+        });
+        $('diag-resultado').innerHTML = `<section class="diagnostico-resultado"><span class="k">Causa mais provável</span><h2>${esc(resultado.causa)}</h2><p>${esc(resultado.acao)}</p></section>`;
+    };
+
+    function carregarFotoCartao(src) {
+        if (!src) return Promise.resolve(null);
+        return new Promise((resolve) => {
+            const imagem = new Image();
+            const temporizador = setTimeout(() => resolve(null), 8000);
+            imagem.crossOrigin = 'anonymous';
+            imagem.onload = () => { clearTimeout(temporizador); resolve(imagem); };
+            imagem.onerror = () => { clearTimeout(temporizador); resolve(null); };
+            imagem.src = src;
+        });
+    }
+
+    function escreverLinhas(contexto, texto, x, y, largura, altura) {
+        const palavras = texto.split(/\s+/);
+        let linha = '';
+        for (const palavra of palavras) {
+            const tentativa = linha ? `${linha} ${palavra}` : palavra;
+            if (contexto.measureText(tentativa).width > largura && linha) {
+                contexto.fillText(linha, x, y);
+                y += altura;
+                linha = palavra;
+            } else {
+                linha = tentativa;
+            }
+        }
+        if (linha) contexto.fillText(linha, x, y);
+    }
+
+    async function criarImagemCartao(plantas) {
+        const fotos = await Promise.all(plantas.map((p) => carregarFotoCartao(api.getFoto(p))));
+        const largura = 1200, topo = 240, alturaLinha = 290;
+        const canvas = document.createElement('canvas');
+        canvas.width = largura;
+        canvas.height = topo + alturaLinha * plantas.length;
+        const contexto = canvas.getContext('2d');
+        if (!contexto) throw new Error('Não foi possível preparar a imagem.');
+
+        contexto.fillStyle = '#f5f8f2';
+        contexto.fillRect(0, 0, canvas.width, canvas.height);
+        contexto.fillStyle = '#0f5c46';
+        contexto.fillRect(0, 0, largura, topo);
+        contexto.fillStyle = '#ffffff';
+        contexto.font = 'bold 28px Arial';
+        contexto.fillText('HERBANÁRIO  /  GUIA DE CUIDADOS', 56, 70);
+        contexto.font = 'bold 48px Georgia';
+        contexto.fillText('As minhas plantas', 56, 139);
+        contexto.font = '24px Arial';
+        contexto.fillText(`Instruções de rega • ${new Date().toLocaleDateString('pt-PT')}`, 56, 190);
+
+        plantas.forEach((planta, indice) => {
+            const y = topo + indice * alturaLinha;
+            contexto.fillStyle = indice % 2 ? '#edf3e9' : '#ffffff';
+            contexto.fillRect(0, y, largura, alturaLinha);
+            contexto.strokeStyle = '#d7e2d5';
+            contexto.beginPath();
+            contexto.moveTo(48, y + alturaLinha);
+            contexto.lineTo(largura - 48, y + alturaLinha);
+            contexto.stroke();
+
+            const foto = fotos[indice];
+            if (foto) {
+                contexto.save();
+                contexto.beginPath();
+                contexto.roundRect(56, y + 40, 210, 210, 20);
+                contexto.clip();
+                const escala = Math.max(210 / foto.width, 210 / foto.height);
+                const fotoLargura = foto.width * escala, fotoAltura = foto.height * escala;
+                contexto.drawImage(foto, 56 + (210 - fotoLargura) / 2, y + 40 + (210 - fotoAltura) / 2, fotoLargura, fotoAltura);
+                contexto.restore();
+            } else {
+                contexto.fillStyle = '#dce9dc';
+                contexto.beginPath();
+                contexto.roundRect(56, y + 40, 210, 210, 20);
+                contexto.fill();
+                contexto.fillStyle = '#426b55';
+                contexto.font = 'bold 20px Arial';
+                contexto.fillText('Foto indisponível', 76, y + 150);
+            }
+
+            const x = 306, textoLargura = 830;
+            contexto.fillStyle = '#153b2d';
+            contexto.font = 'bold 34px Georgia';
+            contexto.fillText(planta.nome, x, y + 66, textoLargura);
+            contexto.fillStyle = '#466254';
+            contexto.font = 'bold 22px Arial';
+            const data = planta.proximaRega
+                ? new Date(`${planta.proximaRega}T12:00:00`).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })
+                : 'por definir';
+            contexto.fillText(`Próxima rega: ${data}  •  A cada ${planta.intervaloRega || 7} dias`, x, y + 108);
+            contexto.font = '20px Arial';
+            contexto.fillStyle = '#30483a';
+            escreverLinhas(contexto, 'Quantidade: regar lentamente até a água começar a sair pelos furos do vaso; esvaziar o prato. Em cactos e suculentas, usar pouca água e deixar a terra secar completamente.', x, y + 150, textoLargura, 29);
+        });
+
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Não foi possível criar o ficheiro de imagem.'));
+            }, 'image/png');
+        });
+    }
+
+    window.gerarCartaoCuidados = async () => {
+        const plantas = api.getColecao(utilizadorAtual.email);
+        const botao = $('gerar-cartao');
+        const erro = $('cartao-erro');
+        if (!plantas.length || !botao || !erro) return;
+        botao.disabled = true;
+        erro.textContent = '';
+        try {
+            const blob = await criarImagemCartao(plantas);
+            const nomeFicheiro = 'cartao-cuidados-plantas.png';
+            const ficheiro = typeof File === 'undefined' ? null : new File([blob], nomeFicheiro, { type: 'image/png' });
+            if (ficheiro && navigator.share && navigator.canShare && navigator.canShare({ files: [ficheiro] })) {
+                await navigator.share({
+                    files: [ficheiro],
+                    title: 'Cuidados das minhas plantas',
+                    text: 'Instruções de rega para cuidares das minhas plantas.'
+                });
+                mostrarToast('Cartão partilhado');
+            } else {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = nomeFicheiro;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                mostrarToast('Cartão guardado como imagem');
+            }
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                mostrarToast('Partilha cancelada');
+            } else {
+                erro.textContent = e.message || 'Não foi possível criar o cartão. Tenta novamente.';
+            }
+        } finally {
+            if ($('gerar-cartao')) $('gerar-cartao').disabled = false;
+        }
+    };
+
     const ECRAS = {
         hoje() {
             const l = minhas(), pend = l.filter((x) => x.d <= 0), f = pend[0];
@@ -134,6 +282,11 @@
             </section>
             <div class="sec"><h2>A tua coleção</h2><a onclick="navegar('colecao')">Ver tudo</a></div>
             ${l.length ? `<div class="hs">${l.map((x) => cartao(x.p, 'col', x)).join('')}</div>` : vazio}
+            <section class="atalhos-func">
+                <button class="func-card" onclick="navegar('diagnostico')"><span aria-hidden="true">⌕</span><b>Diagnóstico por sintomas</b><small>Descobre causas prováveis e o que fazer.</small></button>
+                <button class="func-card" onclick="navegar('cartao')"><span aria-hidden="true">▤</span><b>Cartão para férias</b><small>Prepara as instruções para quem cuida das plantas.</small></button>
+                <button class="func-card" onclick="navegar('lembretes-pessoais')"><span aria-hidden="true">✎</span><b>Os meus lembretes</b><small>Escreve e guarda qualquer lembrete para o teu jardim.</small></button>
+            </section>
             ${renderDica(api.getCatalogo())}`;
         },
 
@@ -143,17 +296,70 @@
                 `<div class="g">${lista.map((p) => cartao(p, 'cat', jaTem(p.id))).join('')}</div>`;
         },
 
-        loja() {
-            return cab('Catálogo e loja', 'A Loja') +
-                `<input class="sr" placeholder="Pesquisar plantas…" value="${esc(F.q)}" oninput="filtrarLoja(this.value)">` +
-                chips([['Todos', 'Todas'], ...Object.entries(TIPOS)], 't', F.t) +
-                `<div class="g" id="lista-loja">${gradeLoja()}</div>`;
-        },
-
         colecao() {
             const l = minhas();
             return cab('A tua coleção pessoal', 'As minhas plantas', `<button class="mini" style="margin-top:8px;padding:10px 14px" onclick="novaPlanta()">＋ Nova</button>`) +
+                (l.length ? '<button class="big s" onclick="navegar(\'cartao\')">Criar cartão para quem cuida</button>' : '') +
                 `<div class="g" style="margin-top:18px">${l.map((x) => cartao(x.p, 'col', x)).join('')}</div>` + (l.length ? '' : vazio);
+        },
+
+        diagnostico() {
+            return cab('Responde a 3 perguntas; o resultado é uma estimativa por regras simples.', 'O que se passa?') +
+                `<form class="diagnostico-form" onsubmit="event.preventDefault();executarDiagnostico()">
+                    <label class="f">1. Qual é o principal sintoma?
+                        <select id="diag-sintoma">
+                            <option value="amarelas">Folhas amarelas</option>
+                            <option value="pontas">Pontas castanhas</option>
+                            <option value="caem">Folhas a cair</option>
+                            <option value="nenhum">Nenhum destes</option>
+                        </select>
+                    </label>
+                    <label class="f">2. Como está a terra neste momento?
+                        <select id="diag-solo">
+                            <option value="humido">Húmida ou molhada</option>
+                            <option value="normal">Ligeiramente húmida</option>
+                            <option value="seco">Seca</option>
+                        </select>
+                    </label>
+                    <label class="f">3. Quanta luz recebe a planta?
+                        <select id="diag-luz">
+                            <option value="pouca">Pouca luz</option>
+                            <option value="indireta">Luz indireta</option>
+                            <option value="muita">Luz forte ou sol direto</option>
+                        </select>
+                    </label>
+                    <button class="big" type="submit">Ver resultado</button>
+                </form>
+                <div id="diag-resultado" aria-live="polite"></div>
+                <p class="diagnostico-nota">É uma orientação geral, não um diagnóstico definitivo. As necessidades variam conforme a espécie e a estação.</p>`;
+        },
+
+        cartao() {
+            const l = minhas();
+            return cab('Instruções prontas para partilhar antes das férias.', 'Cuidados das plantas') +
+                (l.length
+                    ? `<p class="dc">O cartão inclui a fotografia, a próxima data de rega, o intervalo e instruções sobre a quantidade de água.</p>
+                        <div class="cartao-lista">${l.map((x) => `<div class="it">${visual(x.p, 'eb')}<div class="in"><b>${esc(x.p.nome)}</b><small>Próxima rega: ${esc(x.t)}</small></div></div>`).join('')}</div>
+                        <p class="err" id="cartao-erro" role="alert"></p>
+                        <button class="big" id="gerar-cartao" onclick="gerarCartaoCuidados()">Criar e partilhar imagem</button>
+                        <p class="diagnostico-nota">Se a partilha de imagens não estiver disponível neste dispositivo, a imagem será guardada para poderes enviá-la por mensagem.</p>`
+                    : `${vazio}<button class="big" onclick="navegar('colecao')">Abrir a coleção</button>`);
+        },
+
+        'lembretes-pessoais'() {
+            const lembretes = api.getLembretes(utilizadorAtual.email);
+            return cab('Aponta qualquer tarefa, ideia ou cuidado que queiras recordar.', 'Os meus lembretes') +
+                `<form class="diagnostico-form lembrete-form" onsubmit="event.preventDefault();guardarLembrete()">
+                    <label class="f" for="lembrete-texto">O que queres lembrar?</label>
+                    <textarea id="lembrete-texto" class="lembrete-editor" rows="8" maxlength="1000" required placeholder="Ex.: comprar terra para a Monstera, podar a lavanda na primavera…"></textarea>
+                    <button class="big" type="submit">Guardar lembrete</button>
+                </form>
+                <div class="sec"><h2>Lembretes guardados</h2></div>
+                ${lembretes.length ? `<div class="lembretes-lista">${lembretes.map((lembrete) => {
+                    const data = new Date(lembrete.data);
+                    const dataFormatada = Number.isNaN(data.getTime()) ? '' : data.toLocaleString('pt-PT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+                    return `<article class="lembrete-item"><div><p>${esc(lembrete.texto)}</p><small>${esc(dataFormatada)}</small></div><button class="lembrete-remover" aria-label="Apagar lembrete" onclick="apagarLembrete('${lembrete.id}')">Apagar</button></article>`;
+                }).join('')}</div>` : '<div class="em0">Ainda não guardaste lembretes.</div>'}`;
         },
 
         lembretes() {
@@ -182,12 +388,6 @@
         }
     };
 
-    const gradeLoja = () => {
-        const lista = api.filtrarCatalogo({ texto: F.q, tipo: F.t === 'Todos' ? '' : F.t });
-        return lista.map((p) => cartao(p, 'loja', jaTem(p.id))).join('') || '<div class="em0">Nenhuma planta encontrada.</div>';
-    };
-    window.filtrarLoja = (valor) => { F.q = valor; $('lista-loja').innerHTML = gradeLoja(); };
-
     window.guardarPerfil = (dados) => {
         utilizadorAtual = api.atualizarPerfil(utilizadorAtual.email, dados);
         desenhar();
@@ -206,6 +406,7 @@
 
     window.regar = (id) => {
         const p = daColecao(id);
+        if (!p) return;
         api.marcarRega(utilizadorAtual.email, id);
         mostrarToast(`${p.nome} regada`);
         try { navigator.vibrate(30); } catch (e) {}
@@ -218,19 +419,35 @@
         desenhar();
     };
 
+    window.guardarLembrete = () => {
+        const texto = $('lembrete-texto').value.trim();
+        if (!texto) return mostrarToast('Escreve o lembrete antes de guardar');
+        api.adicionarLembrete(utilizadorAtual.email, texto);
+        mostrarToast('Lembrete guardado');
+        desenhar();
+    };
+
+    window.apagarLembrete = (id) => {
+        if (!confirm('Apagar este lembrete?')) return;
+        api.eliminarLembrete(utilizadorAtual.email, id);
+        mostrarToast('Lembrete apagado');
+        desenhar();
+    };
+
     const factos = (p, extra) => `<div class="ft"><div>Rega<b>A cada ${p.intervaloRega} dias</b></div><div>Luz<b>${esc(p.luz || '—')}</b></div><div>Tipo<b>${TIPOS[p.tipo] || '—'}</b></div>${extra}</div>`;
     const topo = (p) => `${visual(p, 'art big', `<i class="lv">${esc(p.nivel)}</i>`)}<h2 class="sn">${esc(p.nome)}</h2><small class="sc">${esc(p.cientifico)}</small>`;
 
     window.abrirEspecie = (id) => {
         const p = api.getCatalogo().find((x) => x.id === id);
-        painel(`${topo(p)}${factos(p, `<div>Preço<b>${eur(p.preco)}</b></div>`)}<p class="dc">${esc(p.dicas)}</p>
+        if (!p) return;
+        painel(`${topo(p)}${factos(p, '')}<section class="info-planta"><span class="k">Guia de cultivo</span><p>${esc(p.detalhes || p.dicas)}</p><p><b>Dica:</b> ${esc(p.dicas)}</p></section>
         <button class="big" onclick="adicionarComprar('${id}');fecharPainel()">＋ Adicionar à coleção</button>
         <button class="big s" onclick="fecharPainel()">Fechar</button>`);
     };
 
     window.abrirPlanta = (id) => {
         const p = daColecao(id), s = estado(p);
-        painel(`${topo(p)}${factos(p, `<div>Próxima rega<b>${s.t}</b></div>`)}<p class="dc">${esc(p.dicas || 'Sem notas.')}</p>
+        painel(`${topo(p)}${factos(p, `<div>Próxima rega<b>${s.t}</b></div>`)}<section class="info-planta"><span class="k">Guia de cultivo</span><p>${esc(p.detalhes || p.dicas || 'Ainda sem guia de cultivo. Podes acrescentar dicas ao editar a planta.')}</p>${p.dicas ? `<p><b>Dica:</b> ${esc(p.dicas)}</p>` : ''}</section>
         <button class="big" onclick="regar('${id}');fecharPainel()">Reguei agora</button>
         <button class="big s" onclick="editarPlanta('${id}')">Editar</button>
         <button class="big d" onclick="removerPlanta('${id}')">Remover da coleção</button>`);
@@ -252,7 +469,48 @@
         desenhar();
     };
 
+    let imagemSelecionada = null;
+
+    function prepararImagem(file) {
+        if (!file.type.startsWith('image/')) {
+            return Promise.reject(new Error('Escolhe um ficheiro de imagem.'));
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            return Promise.reject(new Error('A imagem não pode ter mais de 10 MB.'));
+        }
+
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const imagem = new Image();
+            imagem.onload = () => {
+                URL.revokeObjectURL(url);
+                try {
+                    if (!imagem.width || !imagem.height) throw new Error('A imagem não tem dimensões válidas.');
+                    const escala = Math.min(1, 1200 / Math.max(imagem.width, imagem.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(imagem.width * escala);
+                    canvas.height = Math.round(imagem.height * escala);
+                    const contexto = canvas.getContext('2d');
+                    if (!contexto) throw new Error('Não foi possível processar esta imagem.');
+                    contexto.fillStyle = '#fff';
+                    contexto.fillRect(0, 0, canvas.width, canvas.height);
+                    contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.82));
+                } catch (e) {
+                    reject(e);
+                }
+            };
+            imagem.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error('Não foi possível abrir esta imagem.'));
+            };
+            imagem.src = url;
+        });
+    }
+
     function formulario(p = {}) {
+        imagemSelecionada = null;
+        const foto = api.getFoto(p);
         painel(`<h2 class="sn">${p.id ? 'Editar planta' : 'Nova planta'}</h2>
         <label class="f">Nome comum<input id="n2" value="${esc(p.nome || '')}"></label>
         <label class="f">Nome científico<input id="n3" value="${esc(p.cientifico || '')}"></label>
@@ -260,16 +518,42 @@
         <label class="f">Nível<select id="n5">${opt(NIVEIS, p.nivel)}</select></label></div>
         <label class="f">Regar a cada (dias)<input id="n6" type="number" min="1" value="${p.intervaloRega || 7}"></label>
         <label class="f">Dicas<textarea id="n7" rows="2">${esc(p.dicas || '')}</textarea></label>
-        <button class="big" onclick="guardarFormPlanta('${p.id || ''}')">Guardar planta</button>
+        <label class="f">Fotografia<input id="n8" type="file" accept="image/*" onchange="preverImagemPlanta(this)"></label>
+        <div class="foto-preview" id="foto-preview">${foto ? `<img src="${esc(foto)}" alt="Pré-visualização da planta">` : '<span>Sem fotografia selecionada</span>'}</div>
+        <p class="err" id="planta-erro" role="alert"></p>
+        <button class="big" id="guardar-planta" onclick="guardarFormPlanta('${p.id || ''}')">Guardar planta</button>
         <button class="big s" onclick="fecharPainel()">Cancelar</button>`);
     }
 
     window.novaPlanta = () => { fan(0); formulario(); };
     window.editarPlanta = (id) => formulario(daColecao(id));
 
-    window.guardarFormPlanta = (id) => {
+    window.preverImagemPlanta = (input) => {
+        const file = input.files[0];
+        if (!file) return;
+        const pedido = prepararImagem(file);
+        imagemSelecionada = pedido;
+        pedido.then((dataUrl) => {
+            const preview = $('foto-preview');
+            const erro = $('planta-erro');
+            if (!preview || !erro) return;
+            const imagem = document.createElement('img');
+            imagem.alt = 'Pré-visualização da planta';
+            imagem.src = dataUrl;
+            preview.replaceChildren(imagem);
+        }).catch((e) => {
+            const erro = $('planta-erro');
+            if (erro) erro.textContent = e.message || 'Não foi possível abrir esta imagem.';
+        });
+    };
+
+    window.guardarFormPlanta = async (id) => {
         const nome = $('n2').value.trim();
         if (!nome) return mostrarToast('Dá um nome à planta');
+        const botao = $('guardar-planta');
+        const erro = $('planta-erro');
+        botao.disabled = true;
+        erro.textContent = '';
         const planta = {
             ...(id ? daColecao(id) : {}),
             id: id || undefined,
@@ -280,7 +564,19 @@
             intervaloRega: Math.max(1, parseInt($('n6').value) || 7),
             dicas: $('n7').value.trim()
         };
-        api.guardarPlanta(utilizadorAtual.email, planta);
+        try {
+            if (imagemSelecionada) planta.foto = await imagemSelecionada;
+            if (!$('guardar-planta')) return;
+            api.guardarPlanta(utilizadorAtual.email, planta);
+        } catch (e) {
+            const mensagem = $('planta-erro');
+            const botaoAtual = $('guardar-planta');
+            if (mensagem && botaoAtual) {
+                mensagem.textContent = e.message || 'Não foi possível guardar a planta. Tenta novamente.';
+                botaoAtual.disabled = false;
+            }
+            return;
+        }
         mostrarToast(id ? 'Planta atualizada' : `${nome} criada`);
         window.navegar('colecao');
     };

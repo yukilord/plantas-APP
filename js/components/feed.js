@@ -1,5 +1,5 @@
 ﻿(function () {
-    const { esc, eur, getFoto } = window.api;
+    const { esc, getFoto } = window.api;
 
     function visual(p, classes, badge = '') {
         const foto = getFoto(p);
@@ -17,7 +17,7 @@
             ? `<em class="pill ${info.d <= 0 ? 'due' : ''}">${info.t}</em>`
             : `<span>${p.intervaloRega}d entre regas</span>` + (info
                 ? '<button class="mini" disabled>✓ Tens</button>'
-                : `<button class="mini" onclick="event.stopPropagation();adicionarComprar('${p.id}')">${modo === 'loja' ? eur(p.preco) : '＋ Adicionar'}</button>`);
+                : `<button class="mini" onclick="event.stopPropagation();adicionarComprar('${p.id}')">＋ Adicionar</button>`);
         return `<article class="card" onclick="${abrir}">
             ${visual(p, 'art', `<i class="lv">${p.nivel}</i>`)}
             <div class="mt"><b>${esc(p.nome)}</b><small>${esc(p.cientifico)}</small><div class="row">${rodape}</div></div>
