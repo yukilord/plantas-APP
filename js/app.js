@@ -3,7 +3,7 @@
     const { NIVEIS, TIPOS } = api;
     const { $, esc, eur, opt, diasAte } = api;
     const { initHeader, marcarNav, fan } = window.herbanarioHeader;
-    const { cartao, chips, renderDica } = window.herbanarioFeed;
+    const { visual, cartao, chips, renderDica } = window.herbanarioFeed;
 
     let utilizadorAtual = null;
     let ecra = 'hoje';
@@ -50,7 +50,7 @@
     const jaTem = (especieId) => api.getColecao(utilizadorAtual.email).some((p) => p.especieId === especieId);
     const inicial = () => esc((utilizadorAtual.nome || 'H')[0].toUpperCase());
     const cab = (k, t, extra = '') => `<div class="hd"><div><span class="k">${k}</span><h1>${t}</h1></div>${extra}</div>`;
-    const vazio = '<div class="em0"><span>🪴</span>Ainda não tens plantas. Explora a Loja ou toca em ＋ para criar uma.</div>';
+    const vazio = '<div class="em0">Ainda não tens plantas. Explora a Loja ou toca em ＋ para criar uma.</div>';
 
     function verificarSessao() {
         const user = api.getSessao();
@@ -127,9 +127,9 @@
             const data = new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
             return `${cab(data, `${g},${esc(utilizadorAtual.nome)}`, `<button class="av" onclick="navegar('perfil')" aria-label="Perfil">${inicial()}</button>`) }
             <section class="hero"><div class="tx"><span class="bd">${f ? 'Rega de hoje' : 'Jardim em dia'}</span>
-                <h3>${!l.length ? 'Começa o teu jardim' : f ? esc(f.p.nome) + (pend.length > 1 ? ` +${pend.length - 1}` : '') : 'Tudo regado ✨'}</h3>
+                <h3>${!l.length ? 'Começa o teu jardim' : f ? esc(f.p.nome) + (pend.length > 1 ? ` +${pend.length - 1}` : '') : 'Tudo regado'}</h3>
                 <p>${!l.length ? 'Adiciona a tua primeira planta.' : f ? (f.d < 0 ? `Atrasada ${-f.d} dia(s). ` : '') + 'Está com sede.' : `Próxima: ${esc(l[0].p.nome)},${l[0].t}.`}</p>
-                <div class="bt">${f ? `<button class="b w" onclick="regardestaque('${f.p.id}')">💧 Reguei agora</button><button class="b g" onclick="reagendarDestaque('${f.p.id}')">+1 dia</button>` : !l.length ? `<button class="b w" onclick="navegar('descobrir')">Descobrir plantas</button>` : ''}</div></div>
+                <div class="bt">${f ? `<button class="b w" onclick="regardestaque('${f.p.id}')">Reguei agora</button><button class="b g" onclick="reagendarDestaque('${f.p.id}')">+1 dia</button>` : !l.length ? `<button class="b w" onclick="navegar('descobrir')">Descobrir plantas</button>` : ''}</div></div>
                 <svg class="ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="8"/><circle cx="40" cy="40" r="34" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="${213.6 * (1 - pc)}" transform="rotate(-90 40 40)"/><text x="40" y="45" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">${Math.round(pc * 100)}%</text></svg>
             </section>
             <div class="sec"><h2>A tua coleção</h2><a onclick="navegar('colecao')">Ver tudo</a></div>
@@ -164,10 +164,10 @@
                 return `<div class="dy ${n ? 'on' : ''}">${dt.toLocaleDateString('pt-PT', { weekday: 'short' }).replace('.', '')}<b>${n || dt.getDate()}</b></div>`;
             }).join('');
             return cab('Gestão de cuidados', 'Lembretes de rega') + `<div class="wk">${semana}</div>` +
-                (l.map((x) => `<div class="it" onclick="abrirPlanta('${x.p.id}')"><div class="eb" style="--h:${x.p.hue}">${x.p.emoji}</div>
+                (l.map((x) => `<div class="it" onclick="abrirPlanta('${x.p.id}')">${visual(x.p, 'eb')}
                     <div class="in"><b>${esc(x.p.nome)}</b><small>A cada ${x.p.intervaloRega} dias</small></div>
                     <em class="pill ${x.d <= 0 ? 'due' : ''}">${x.t}</em>
-                    <button class="wb" aria-label="Regar" onclick="event.stopPropagation();regar('${x.p.id}')">💧</button></div>`).join('') || vazio);
+                    <button class="wb" aria-label="Regar" onclick="event.stopPropagation();regar('${x.p.id}')">Regar</button></div>`).join('') || vazio);
         },
 
         perfil() {
@@ -207,7 +207,7 @@
     window.regar = (id) => {
         const p = daColecao(id);
         api.marcarRega(utilizadorAtual.email, id);
-        mostrarToast(`💧 ${p.nome} regada`);
+        mostrarToast(`${p.nome} regada`);
         try { navigator.vibrate(30); } catch (e) {}
         desenhar();
     };
@@ -219,7 +219,7 @@
     };
 
     const factos = (p, extra) => `<div class="ft"><div>Rega<b>A cada ${p.intervaloRega} dias</b></div><div>Luz<b>${esc(p.luz || '—')}</b></div><div>Tipo<b>${TIPOS[p.tipo] || '—'}</b></div>${extra}</div>`;
-    const topo = (p) => `<div class="art big" style="--h:${p.hue}"><span>${p.emoji}</span><i class="lv">${p.nivel}</i></div><h2 class="sn">${esc(p.nome)}</h2><small class="sc">${esc(p.cientifico)}</small>`;
+    const topo = (p) => `${visual(p, 'art big', `<i class="lv">${esc(p.nivel)}</i>`)}<h2 class="sn">${esc(p.nome)}</h2><small class="sc">${esc(p.cientifico)}</small>`;
 
     window.abrirEspecie = (id) => {
         const p = api.getCatalogo().find((x) => x.id === id);
@@ -231,7 +231,7 @@
     window.abrirPlanta = (id) => {
         const p = daColecao(id), s = estado(p);
         painel(`${topo(p)}${factos(p, `<div>Próxima rega<b>${s.t}</b></div>`)}<p class="dc">${esc(p.dicas || 'Sem notas.')}</p>
-        <button class="big" onclick="regar('${id}');fecharPainel()">💧 Reguei agora</button>
+        <button class="big" onclick="regar('${id}');fecharPainel()">Reguei agora</button>
         <button class="big s" onclick="editarPlanta('${id}')">Editar</button>
         <button class="big d" onclick="removerPlanta('${id}')">Remover da coleção</button>`);
     };
@@ -240,7 +240,7 @@
         const especie = api.getCatalogo().find((p) => p.id === id);
         if (!especie) return;
         api.adicionarAColecao(utilizadorAtual.email, especie);
-        mostrarToast(`🌱 ${especie.nome} adicionada à coleção`);
+        mostrarToast(`${especie.nome} adicionada à coleção`);
         desenhar();
     };
 
@@ -252,11 +252,8 @@
         desenhar();
     };
 
-    const EMOJIS = ['🪴', '🌿', '🌵', '🌸', '🌺', '🌻', '🌷', '🌴', '🍃', '🍀'];
-
     function formulario(p = {}) {
         painel(`<h2 class="sn">${p.id ? 'Editar planta' : 'Nova planta'}</h2>
-        <label class="f">Emoji<select id="n1">${opt(EMOJIS, p.emoji)}</select></label>
         <label class="f">Nome comum<input id="n2" value="${esc(p.nome || '')}"></label>
         <label class="f">Nome científico<input id="n3" value="${esc(p.cientifico || '')}"></label>
         <div class="two"><label class="f">Tipo<select id="n4">${opt(TIPOS, p.tipo)}</select></label>
@@ -276,7 +273,6 @@
         const planta = {
             ...(id ? daColecao(id) : {}),
             id: id || undefined,
-            emoji: $('n1').value,
             nome,
             cientifico: $('n3').value.trim() || '—',
             tipo: $('n4').value,
@@ -285,7 +281,7 @@
             dicas: $('n7').value.trim()
         };
         api.guardarPlanta(utilizadorAtual.email, planta);
-        mostrarToast(id ? 'Planta atualizada' : `🌱 ${nome} criada`);
+        mostrarToast(id ? 'Planta atualizada' : `${nome} criada`);
         window.navegar('colecao');
     };
 })();

@@ -1,47 +1,61 @@
 const USERS_KEY = "herbanario_users";
-const SESSION_KEY = "herbanario_session";
+const SESSAO_KEY = "herbanario_sessao";
 
 function lerUsers() {
-    return JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
+    try {
+        return JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
+    } catch {
+        return [];
+    }
 }
 
 function gravarUsers(users) {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+function normalizarEmail(email) {
+    return String(email || "").trim().toLowerCase();
+}
+
 export function getSessao() {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
+    try {
+        const raw = localStorage.getItem(SESSAO_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
 }
 
 export function logout() {
-    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSAO_KEY);
 }
 
 export function registar({ nome, email, password, nivel }) {
-    const users = lerUsers();
-    if (users.some((u) => u.email === email.toLowerCase())) {
+    const emailNormalizado = normalizarEmail(email);
+    const lista = lerUsers();
+    if (lista.some((u) => u.email === emailNormalizado)) {
         throw new Error("Já existe uma conta com este email.");
     }
     const user = {
-        id: email.toLowerCase(),
-        nome: nome.trim(),
-        email: email.toLowerCase(),
+        id: emailNormalizado,
+        nome: String(nome || "").trim() || emailNormalizado.split("@")[0],
+        email: emailNormalizado,
         password,
         nivel
     };
-    users.push(user);
-    gravarUsers(users);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    lista.push(user);
+    gravarUsers(lista);
+    localStorage.setItem(SESSAO_KEY, JSON.stringify(user));
     return user;
 }
 
 export function login(email, password) {
+    const emailNormalizado = normalizarEmail(email);
     const user = lerUsers().find(
-        (u) => u.email === email.toLowerCase() && u.password === password
+        (u) => u.email === emailNormalizado && u.password === password
     );
     if (!user) throw new Error("Email ou palavra-passe incorretos.");
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    localStorage.setItem(SESSAO_KEY, JSON.stringify(user));
     return user;
 }
 
@@ -53,23 +67,32 @@ export function atualizarNivel(nivel) {
     );
     gravarUsers(users);
     const atualizado = { ...sessao, nivel };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(atualizado));
+    localStorage.setItem(SESSAO_KEY, JSON.stringify(atualizado));
     return atualizado;
 }
 
 export function atualizarPerfil(email, dados) {
-    const emailNormalizado = email.toLowerCase();
+    const emailNormalizado = normalizarEmail(email);
     const users = lerUsers();
     const indice = users.findIndex((user) => user.email === emailNormalizado);
     if (indice < 0) throw new Error("Conta não encontrada.");
 
-    const atualizado = { ...users[indice], ...dados, email: emailNormalizado };
+    const nomeProposto = dados && Object.prototype.hasOwnProperty.call(dados, "nome")
+        ? dados.nome
+        : users[indice].nome;
+
+    const atualizado = {
+        ...users[indice],
+        ...dados,
+        email: emailNormalizado,
+        nome: String(nomeProposto || "").trim() || "Jardineiro"
+    };
     users[indice] = atualizado;
     gravarUsers(users);
 
     const sessao = getSessao();
     if (sessao?.email === emailNormalizado) {
-        localStorage.setItem(SESSION_KEY, JSON.stringify(atualizado));
+        localStorage.setItem(SESSAO_KEY, JSON.stringify(atualizado));
     }
 
     return atualizado;
