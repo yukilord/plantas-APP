@@ -15,7 +15,13 @@
         initHeader();
         registarServiceWorker();
         $('sh').onclick = (e) => { if (e.target.id === 'sh' && !bloqueado) fecharPainel(); };
-        verificarSessao();
+        window.addEventListener('firebase-sync-error', (e) => {
+            mostrarToast(`Erro ao sincronizar com Firebase: ${e.detail}`);
+        });
+        window.addEventListener('firebase-auth-error', (e) => {
+            mostrarToast(`Erro de autenticação Firebase: ${e.detail}`);
+        });
+        api.inicializar().then(verificarSessao);
     });
 
     function registarServiceWorker() {
@@ -74,32 +80,66 @@
             <p class="err" id="ae" role="alert"></p>
             <button class="big">${r ? 'Criar conta' : 'Entrar'}</button>
         </form>`, true);
+        $('pn').insertAdjacentHTML('beforeend', `
+            <div class="auth-separador">ou</div>
+            <button type="button" class="big auth-google" onclick="entrarComGoogle()">Continuar com Google</button>
+        `);
     }
 
     window.alternarAuth = (modo) => abrirAuth(modo);
 
-    window.submeterAuth = (e, modo) => {
+    window.entrarComGoogle = async () => {
+        const botao = $('pn').querySelector('.auth-google');
+        const mensagem = $('ae');
+        if (botao) botao.disabled = true;
+        if (mensagem) mensagem.textContent = '';
+        try {
+            utilizadorAtual = await api.loginGoogle();
+            fecharPainel();
+            window.navegar('hoje');
+        } catch (erro) {
+            const mensagens = {
+                'auth/operation-not-allowed': 'O início de sessão com Google ainda não está ativado no Firebase.',
+                'auth/unauthorized-domain': 'Este domínio não está autorizado nas definições do Firebase Authentication.',
+                'auth/popup-blocked': 'O navegador bloqueou a janela de autenticação. Permite pop-ups e tenta novamente.',
+                'auth/popup-closed-by-user': 'A janela de autenticação foi fechada antes de terminares o início de sessão.',
+                'auth/account-exists-with-different-credential': 'Já existe uma conta com este email. Entra primeiro pelo método original.'
+            };
+            if (mensagem) mensagem.textContent = mensagens[erro.code] || erro.message || 'Não foi possível entrar com Google.';
+            if (botao) botao.disabled = false;
+        }
+    };
+
+    window.submeterAuth = async (e, modo) => {
         e.preventDefault();
         const email = $('a1').value.trim(), password = $('a2').value;
+        const botao = $('pn').querySelector('form button[type="submit"], form button.big');
+        if (botao) botao.disabled = true;
         try {
             if (modo === 'register') {
                 const nome = $('a3').value.trim() || email.split('@')[0];
                 const nivel = $('a4').value;
-                utilizadorAtual = api.registar({ nome, email, password, nivel });
+                utilizadorAtual = await api.registar({ nome, email, password, nivel });
             } else {
-                utilizadorAtual = api.login(email, password);
+                utilizadorAtual = await api.login(email, password);
             }
         } catch (erro) {
-            $('ae').textContent = erro.message || 'Não foi possível autenticar. Tenta novamente.';
+            const mensagem = $('ae');
+            if (mensagem) mensagem.textContent = erro.message || 'Não foi possível autenticar. Tenta novamente.';
+            if (botao) botao.disabled = false;
             return;
         }
         fecharPainel();
         window.navegar('hoje');
     };
 
-    window.logout = () => {
-        api.logout();
-        location.reload();
+    window.logout = async () => {
+        try {
+            await api.logout();
+            location.reload();
+        } catch (erro) {
+            mostrarToast(`Não foi possível terminar sessão: ${erro.message}`);
+        }
     };
 
     window.navegar = (id) => {

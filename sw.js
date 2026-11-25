@@ -1,9 +1,10 @@
-const CACHE = 'herbanario-v15';
+const CACHE = 'herbanario-v18';
 
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './js/firebase-config.js',
   './css/base.css',
   './css/main.css',
   './js/api.js',

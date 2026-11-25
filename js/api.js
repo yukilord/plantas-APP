@@ -23,66 +23,162 @@
             .map(([k, v]) => `<option value="${k}" ${k == sel ? 'selected' : ''}>${v}</option>`)
             .join('');
 
-    const USERS_KEY = 'herbanario_users';
     const SESSAO_KEY = 'herbanario_sessao';
-
-    const users = () => {
-        try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch { return []; }
-    };
-    const gravarUsers = (lista) => localStorage.setItem(USERS_KEY, JSON.stringify(lista));
-
-    function garantirContaTeste() {
-        const lista = users();
-        if (lista.some((u) => String(u.email || '').trim().toLowerCase() === 'teste@teste.pt')) return;
-        lista.push({ nome: 'Teste', email: 'teste@teste.pt', password: 'teste123', nivel: 'Iniciante' });
-        gravarUsers(lista);
-    }
-
-    garantirContaTeste();
+    const { auth, db, storage } = window.firebaseServices;
+    let perfilAtual = null;
+    let sincronizacao = Promise.resolve();
+    let operacaoAutenticacao = false;
+    let uidCarregado = null;
+    localStorage.removeItem('herbanario_users');
 
     function abrirSessao(u) {
-        const sessao = { nome: u.nome, email: u.email, nivel: u.nivel };
+        const sessao = {
+            nome: u.nome || u.email.split('@')[0],
+            email: u.email,
+            nivel: u.nivel || 'Iniciante'
+        };
+        perfilAtual = sessao;
         localStorage.setItem(SESSAO_KEY, JSON.stringify(sessao));
         return sessao;
     }
 
-    function registar({ nome, email, password, nivel }) {
-        email = email.trim().toLowerCase();
-        if (password.length < 4) throw new Error('A palavra-passe precisa de pelo menos 4 caracteres.');
-        if (users().some((u) => u.email === email)) throw new Error('Este email já está registado.');
-        const u = { nome, email, password, nivel };
-        gravarUsers([...users(), u]);
-        return abrirSessao(u);
+    function recolherDadosLocais(email) {
+        const colecao = colecaoTodos()[email] || [];
+        let lembretes = [];
+        try {
+            const dados = JSON.parse(localStorage.getItem(LEMBRETES_KEY) || '{}');
+            lembretes = Array.isArray(dados[email]) ? dados[email] : [];
+        } catch (erro) {
+            console.error('Não foi possível ler os lembretes locais.', erro);
+        }
+        return { plantas: colecao, lembretes };
     }
 
-    function login(email, password) {
+    function guardarDadosLocais(email, dados) {
+        const colecoes = colecaoTodos();
+        colecoes[email] = Array.isArray(dados.plantas) ? dados.plantas : [];
+        localStorage.setItem(COLECAO_KEY, JSON.stringify(colecoes));
+        const lembretes = {};
+        try { Object.assign(lembretes, JSON.parse(localStorage.getItem(LEMBRETES_KEY) || '{}')); } catch (erro) {
+            console.error('Não foi possível ler os lembretes locais.', erro);
+        }
+        lembretes[email] = Array.isArray(dados.lembretes) ? dados.lembretes : [];
+        localStorage.setItem(LEMBRETES_KEY, JSON.stringify(lembretes));
+    }
+
+    async function carregarDadosFirebase(user) {
+        const referencia = db.collection('users').doc(user.uid);
+        const snapshot = await referencia.get();
+        const dados = snapshot.exists ? snapshot.data() : {};
+        const dadosLocais = recolherDadosLocais(user.email);
+        const perfil = dados.perfil || {
+            nome: user.displayName || user.email.split('@')[0],
+            email: user.email,
+            nivel: 'Iniciante'
+        };
+        abrirSessao({ ...perfil, email: user.email });
+        guardarDadosLocais(user.email, snapshot.exists ? dados : dadosLocais);
+        if (!snapshot.exists) {
+            await referencia.set({ perfil, plantas: [], lembretes: [] });
+            agendarSincronizacao(user.email);
+        }
+        uidCarregado = user.uid;
+        return getSessao();
+    }
+
+    function notificarErroSincronizacao(erro) {
+        window.dispatchEvent(new CustomEvent('firebase-sync-error', {
+            detail: erro && erro.message ? erro.message : 'Erro desconhecido'
+        }));
+    }
+
+    function agendarSincronizacao(email) {
+        const user = auth.currentUser;
+        if (!user || user.email.toLowerCase() !== email.toLowerCase()) return;
+
+        const dados = recolherDadosLocais(email);
+        const perfil = { ...perfilAtual };
+        sincronizacao = sincronizacao.then(async () => {
+            if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+            const plantas = await Promise.all(dados.plantas.map(async (planta) => {
+                if (!planta.foto || !planta.foto.startsWith('data:image/')) return planta;
+                const caminho = `users/${user.uid}/plants/${planta.id}.jpg`;
+                const ficheiro = storage.ref(caminho);
+                await ficheiro.putString(planta.foto, 'data_url', { contentType: 'image/jpeg' });
+                return { ...planta, foto: await ficheiro.getDownloadURL() };
+            }));
+            if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+            await db.collection('users').doc(user.uid).set({
+                perfil,
+                plantas,
+                lembretes: dados.lembretes
+            }, { merge: true });
+            const atual = recolherDadosLocais(email);
+            guardarDadosLocais(email, {
+                plantas: atual.plantas.map((planta) => {
+                    const sincronizada = plantas.find((item) => item.id === planta.id);
+                    return sincronizada ? { ...planta, foto: sincronizada.foto } : planta;
+                }),
+                lembretes: atual.lembretes
+            });
+        }).catch((erro) => {
+            notificarErroSincronizacao(erro);
+        });
+    }
+
+    async function registar({ nome, email, password, nivel }) {
         email = email.trim().toLowerCase();
-        const u = users().find((x) => x.email === email && x.password === password);
-        if (!u) throw new Error('Email ou palavra-passe incorretos.');
-        return abrirSessao(u);
+        operacaoAutenticacao = true;
+        try {
+            const credencial = await auth.createUserWithEmailAndPassword(email, password);
+            await credencial.user.updateProfile({ displayName: nome });
+            return await carregarDadosFirebase(credencial.user);
+        } finally {
+            operacaoAutenticacao = false;
+        }
+    }
+
+    async function login(email, password) {
+        email = email.trim().toLowerCase();
+        operacaoAutenticacao = true;
+        try {
+            const credencial = await auth.signInWithEmailAndPassword(email, password);
+            return await carregarDadosFirebase(credencial.user);
+        } finally {
+            operacaoAutenticacao = false;
+        }
+    }
+
+    async function loginGoogle() {
+        operacaoAutenticacao = true;
+        try {
+            const fornecedor = new firebase.auth.GoogleAuthProvider();
+            fornecedor.setCustomParameters({ prompt: 'select_account' });
+            const resultado = await auth.signInWithPopup(fornecedor);
+            return await carregarDadosFirebase(resultado.user);
+        } finally {
+            operacaoAutenticacao = false;
+        }
     }
 
     function getSessao() {
         try { return JSON.parse(localStorage.getItem(SESSAO_KEY)); } catch { return null; }
     }
 
-    function logout() {
+    async function logout() {
+        await auth.signOut();
+        perfilAtual = null;
+        uidCarregado = null;
         localStorage.removeItem(SESSAO_KEY);
     }
 
     function atualizarPerfil(email, dados) {
-        const emailNormalizado = String(email || '').trim().toLowerCase();
-        const lista = users();
-        const indice = lista.findIndex((u) => u.email === emailNormalizado);
-        if (indice < 0) throw new Error('Conta não encontrada.');
-
-        const atual = { ...lista[indice], ...dados };
-        if (atual.email) atual.email = atual.email.trim().toLowerCase();
+        if (!perfilAtual || perfilAtual.email !== email) throw new Error('Conta não encontrada.');
+        const atual = { ...perfilAtual, ...dados };
         if (atual.nome !== undefined) atual.nome = String(atual.nome || '').trim() || 'Jardineiro';
-
-        lista[indice] = atual;
-        gravarUsers(lista);
-        return abrirSessao(atual);
+        abrirSessao(atual);
+        agendarSincronizacao(email);
+        return atual;
     }
 
     const COLECAO_KEY = 'herbanario_colecao';
@@ -191,7 +287,7 @@
 
     function getFoto(planta) {
         const especie = planta.especieId && CATALOGO.find((p) => p.id === planta.especieId);
-        return especie ? especie.foto : (planta.foto || '');
+        return planta.foto || (especie ? especie.foto : '');
     }
 
     function colecaoTodos() {
@@ -210,6 +306,7 @@
         const dados = colecaoTodos();
         dados[email] = plantas;
         localStorage.setItem(COLECAO_KEY, JSON.stringify(dados));
+        agendarSincronizacao(email);
     }
 
     function adicionarAColecao(email, especie) {
@@ -256,6 +353,7 @@
         lembretes.push({ id: uid(), texto: String(texto), data: new Date().toISOString() });
         dados[email] = lembretes;
         localStorage.setItem(LEMBRETES_KEY, JSON.stringify(dados));
+        agendarSincronizacao(email);
     }
 
     function eliminarLembrete(email, id) {
@@ -263,6 +361,7 @@
         try { dados = JSON.parse(localStorage.getItem(LEMBRETES_KEY) || '{}'); } catch { dados = {}; }
         dados[email] = (Array.isArray(dados[email]) ? dados[email] : []).filter((lembrete) => lembrete.id !== id);
         localStorage.setItem(LEMBRETES_KEY, JSON.stringify(dados));
+        agendarSincronizacao(email);
     }
 
     function eliminarPlanta(email, id) {
@@ -335,10 +434,43 @@
         return { causa: melhor.nome, acao: melhor.acao };
     }
 
+    const inicializacao = new Promise((resolve) => {
+        let primeiraResposta = true;
+        auth.onAuthStateChanged(async (user) => {
+            try {
+                if (!user) {
+                    perfilAtual = null;
+                    uidCarregado = null;
+                    localStorage.removeItem(SESSAO_KEY);
+                }
+                else if (!operacaoAutenticacao && user.uid !== uidCarregado) {
+                    await carregarDadosFirebase(user);
+                }
+            } catch (erro) {
+                localStorage.removeItem(SESSAO_KEY);
+                window.dispatchEvent(new CustomEvent('firebase-auth-error', {
+                    detail: erro && erro.message ? erro.message : 'Não foi possível carregar os dados da conta.'
+                }));
+            } finally {
+                if (primeiraResposta) {
+                    primeiraResposta = false;
+                    resolve();
+                }
+            }
+        }, (erro) => {
+            window.dispatchEvent(new CustomEvent('firebase-auth-error', { detail: erro.message }));
+            if (primeiraResposta) {
+                primeiraResposta = false;
+                resolve();
+            }
+        });
+    });
+
     const api = {
         $, uid, hojeISO, adicionarDias, diasAte, esc, opt,
         NIVEIS, TIPOS,
-        registar, login, getSessao, logout, atualizarPerfil,
+        inicializar: () => inicializacao,
+        registar, login, loginGoogle, getSessao, logout, atualizarPerfil,
         getCatalogo, getFoto, getColecao, adicionarAColecao, guardarPlanta,
         eliminarPlanta, marcarRega, reagendarRega, precisaRegaHoje, filtrarCatalogo, diagnosticar,
         getLembretes, adicionarLembrete, eliminarLembrete

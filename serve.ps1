@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $root = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd("\")
-$prefix = "http://127.0.0.1:8000/"
+$prefix = "http://localhost:8000/"
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add($prefix)
 
