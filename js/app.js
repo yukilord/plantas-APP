@@ -86,10 +86,6 @@
                 <img src="assets/google-g-logo.png" alt="" width="20" height="20">
                 <span>Continuar com Google</span>
             </button>
-            <button type="button" class="big auth-github" onclick="entrarComGitHub()">
-                <img src="assets/github-mark.png" alt="" width="20" height="20">
-                <span>Continuar com GitHub</span>
-            </button>
         `);
     }
 
@@ -107,10 +103,15 @@
             fecharPainel();
             window.navegar('hoje');
         } catch (erro) {
+            if (erro && (erro.code === 'auth/popup-closed-by-user' || erro.code === 'auth/cancelled-popup-request')) {
+                if (botao) botao.disabled = false;
+                return;
+            }
             const mensagens = {
                 'auth/operation-not-allowed': `O início de sessão com ${nomeFornecedor} ainda não está ativado no Firebase.`,
                 'auth/unauthorized-domain': 'Este domínio não está autorizado nas definições do Firebase Authentication.',
-                'auth/account-exists-with-different-credential': 'Já existe uma conta com este email. Entra primeiro pelo método original.'
+                'auth/account-exists-with-different-credential': 'Já existe uma conta com este email. Entra primeiro pelo método original.',
+                'auth/network-request-failed': 'Sem ligação à internet. Verifica a ligação e tenta novamente.'
             };
             if (mensagem) mensagem.textContent = mensagens[erro.code] || erro.message || `Não foi possível entrar com ${nomeFornecedor}.`;
             if (botao) botao.disabled = false;
@@ -118,7 +119,6 @@
     }
 
     window.entrarComGoogle = () => entrarComFornecedor(api.loginGoogle, '.auth-google', 'Google');
-    window.entrarComGitHub = () => entrarComFornecedor(api.loginGitHub, '.auth-github', 'GitHub');
 
     window.submeterAuth = async (e, modo) => {
         e.preventDefault();

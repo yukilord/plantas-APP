@@ -1,4 +1,4 @@
-const CACHE = 'herbanario-v22';
+const CACHE = 'herbanario-v23';
 
 const ASSETS = [
   './',
@@ -9,7 +9,6 @@ const ASSETS = [
   './css/main.css',
   './js/api.js',
   './assets/google-g-logo.png',
-  './assets/github-mark.png',
   './js/components/header.js',
   './js/components/feed.js',
   './js/app.js'
@@ -41,7 +40,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const sameOrigin = url.origin === location.origin;
 
-  if (!sameOrigin) return;
+  // Pedidos de outros domínios (Firebase, Google, fontes) seguem sempre pela rede,
+  // tal como os caminhos /__/ usados pelo Firebase Authentication.
+  if (!sameOrigin || url.pathname.startsWith('/__/')) return;
 
   event.respondWith(
     fetch(event.request)

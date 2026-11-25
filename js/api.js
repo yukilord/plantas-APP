@@ -68,7 +68,7 @@
 
     async function carregarDadosFirebase(user) {
         if (!user.email) {
-            throw new Error('A conta GitHub tem de disponibilizar um email para associar os teus dados.');
+            throw new Error('A conta tem de disponibilizar um email para associar os teus dados.');
         }
         const referencia = db.collection('users').doc(user.uid);
         const snapshot = await referencia.get();
@@ -152,25 +152,22 @@
         }
     }
 
+    // O login Google usa uma janela popup: o redirect falha em localhost porque os
+    // browsers atuais bloqueiam o armazenamento partilhado com o domínio firebaseapp.com.
     async function loginGoogle() {
+        const fornecedor = new firebase.auth.GoogleAuthProvider();
+        fornecedor.setCustomParameters({ prompt: 'select_account' });
         operacaoAutenticacao = true;
         try {
-            const fornecedor = new firebase.auth.GoogleAuthProvider();
-            fornecedor.setCustomParameters({ prompt: 'select_account' });
-            await auth.signInWithRedirect(fornecedor);
-            return null;
-        } finally {
-            operacaoAutenticacao = false;
-        }
-    }
-
-    async function loginGitHub() {
-        operacaoAutenticacao = true;
-        try {
-            const fornecedor = new firebase.auth.GithubAuthProvider();
-            fornecedor.addScope('user:email');
-            await auth.signInWithRedirect(fornecedor);
-            return null;
+            const credencial = await auth.signInWithPopup(fornecedor);
+            return await carregarDadosFirebase(credencial.user);
+        } catch (erro) {
+            if (erro && erro.code === 'auth/popup-blocked') {
+                // Sem popups permitidos, tenta o redirect como alternativa.
+                await auth.signInWithRedirect(fornecedor);
+                return null;
+            }
+            throw erro;
         } finally {
             operacaoAutenticacao = false;
         }
@@ -492,7 +489,7 @@
         $, uid, hojeISO, adicionarDias, diasAte, esc, opt,
         NIVEIS, TIPOS,
         inicializar: () => inicializacao,
-        registar, login, loginGoogle, loginGitHub, getSessao, logout, atualizarPerfil,
+        registar, login, loginGoogle, getSessao, logout, atualizarPerfil,
         getCatalogo, getFoto, getColecao, adicionarAColecao, guardarPlanta,
         eliminarPlanta, marcarRega, reagendarRega, precisaRegaHoje, filtrarCatalogo, diagnosticar,
         getLembretes, adicionarLembrete, eliminarLembrete
