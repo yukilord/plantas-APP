@@ -154,8 +154,8 @@
         try {
             const fornecedor = new firebase.auth.GoogleAuthProvider();
             fornecedor.setCustomParameters({ prompt: 'select_account' });
-            const resultado = await auth.signInWithPopup(fornecedor);
-            return await carregarDadosFirebase(resultado.user);
+            await auth.signInWithRedirect(fornecedor);
+            return null;
         } finally {
             operacaoAutenticacao = false;
         }
@@ -436,6 +436,11 @@
 
     const inicializacao = new Promise((resolve) => {
         let primeiraResposta = true;
+        auth.getRedirectResult().catch((erro) => {
+            window.dispatchEvent(new CustomEvent('firebase-auth-error', {
+                detail: erro && erro.message ? erro.message : 'Não foi possível concluir o início de sessão com Google.'
+            }));
+        });
         auth.onAuthStateChanged(async (user) => {
             try {
                 if (!user) {

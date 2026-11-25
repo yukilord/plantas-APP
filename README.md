@@ -27,16 +27,19 @@ npm nem da CLI para executar a aplicação localmente.
 
 Antes de registar uma conta:
 
-1. Na consola Firebase, ativa **Authentication → Email/Password**.
+1. Na consola Firebase, ativa **Authentication → Sign-in method → Email/Password**
+   e **Google**. No fornecedor Google, confirma o email de suporte e guarda as
+   alterações.
 2. Cria a base de dados em **Firestore Database → Regras**, cola o conteúdo de
    `firestore.rules` e publica-o.
 3. Ativa **Storage → Regras**, cola o conteúdo de `storage.rules` e publica-o.
    O Storage pode exigir a ativação do plano de faturação do projeto.
 4. Em **Authentication → Settings → Authorized domains**, confirma que
    `localhost` está autorizado para o servidor local. Para publicar o site,
-   adiciona também o domínio de alojamento.
-5. Inicia o servidor indicado acima e escolhe **Registar**. Usa a mesma conta
-   para aceder aos teus dados noutros dispositivos.
+   adiciona também o domínio de alojamento. O login Google redireciona
+   temporariamente para a autenticação e regressa à aplicação.
+5. Inicia o servidor indicado acima e escolhe **Registar** ou **Continuar com
+   Google**. Usa a mesma conta para aceder aos teus dados noutros dispositivos.
 
 Em alternativa, depois de criar as bases de dados e iniciar sessão na Firebase
 CLI com `firebase login`, podes publicar as regras a partir da pasta do projeto

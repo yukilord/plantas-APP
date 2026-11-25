@@ -71,18 +71,21 @@
     function abrirAuth(modo) {
         const r = modo === 'register';
         painel(`<h2 class="sn">${r ? 'Criar conta' : 'Entrar no Herbanário'}</h2>
-        <div class="chips" style="margin:12px 0"><button class="chip ${r ? '' : 'on'}" onclick="alternarAuth('login')">Entrar</button><button class="chip ${r ? 'on' : ''}" onclick="alternarAuth('register')">Registar</button></div>
-        <form onsubmit="submeterAuth(event,'${modo}')">
+        <div class="chips auth-switch"><button type="button" class="chip ${r ? '' : 'on'}" onclick="alternarAuth('login')">Entrar</button><button type="button" class="chip ${r ? 'on' : ''}" onclick="alternarAuth('register')">Registar</button></div>
+        <form class="auth-form" onsubmit="submeterAuth(event,'${modo}')">
             <label class="f">Email<input id="a1" type="email" required placeholder="exemplo@email.com" autocomplete="email"></label>
             <label class="f">Palavra-passe<input id="a2" type="password" required placeholder="••••••••" autocomplete="${r ? 'new' : 'current'}-password"></label>
             ${r ? `<label class="f">Nome<input id="a3" placeholder="O teu nome" autocomplete="name"></label>
             <label class="f">Nível de experiência<select id="a4">${opt(NIVEIS)}</select></label>` : ''}
             <p class="err" id="ae" role="alert"></p>
-            <button class="big">${r ? 'Criar conta' : 'Entrar'}</button>
+            <button type="submit" class="big auth-submit">${r ? 'Criar conta' : 'Entrar'}</button>
         </form>`, true);
         $('pn').insertAdjacentHTML('beforeend', `
             <div class="auth-separador">ou</div>
-            <button type="button" class="big auth-google" onclick="entrarComGoogle()">Continuar com Google</button>
+            <button type="button" class="big auth-google" onclick="entrarComGoogle()">
+                <img src="assets/google-g-logo.png" alt="" width="20" height="20">
+                <span>Continuar com Google</span>
+            </button>
         `);
     }
 
@@ -94,7 +97,9 @@
         if (botao) botao.disabled = true;
         if (mensagem) mensagem.textContent = '';
         try {
-            utilizadorAtual = await api.loginGoogle();
+            const utilizador = await api.loginGoogle();
+            if (!utilizador) return;
+            utilizadorAtual = utilizador;
             fecharPainel();
             window.navegar('hoje');
         } catch (erro) {
