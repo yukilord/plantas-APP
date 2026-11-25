@@ -86,34 +86,39 @@
                 <img src="assets/google-g-logo.png" alt="" width="20" height="20">
                 <span>Continuar com Google</span>
             </button>
+            <button type="button" class="big auth-github" onclick="entrarComGitHub()">
+                <img src="assets/github-mark.png" alt="" width="20" height="20">
+                <span>Continuar com GitHub</span>
+            </button>
         `);
     }
 
     window.alternarAuth = (modo) => abrirAuth(modo);
 
-    window.entrarComGoogle = async () => {
-        const botao = $('pn').querySelector('.auth-google');
+    async function entrarComFornecedor(iniciarSessao, seletor, nomeFornecedor) {
+        const botao = $('pn').querySelector(seletor);
         const mensagem = $('ae');
         if (botao) botao.disabled = true;
         if (mensagem) mensagem.textContent = '';
         try {
-            const utilizador = await api.loginGoogle();
+            const utilizador = await iniciarSessao();
             if (!utilizador) return;
             utilizadorAtual = utilizador;
             fecharPainel();
             window.navegar('hoje');
         } catch (erro) {
             const mensagens = {
-                'auth/operation-not-allowed': 'O início de sessão com Google ainda não está ativado no Firebase.',
+                'auth/operation-not-allowed': `O início de sessão com ${nomeFornecedor} ainda não está ativado no Firebase.`,
                 'auth/unauthorized-domain': 'Este domínio não está autorizado nas definições do Firebase Authentication.',
-                'auth/popup-blocked': 'O navegador bloqueou a janela de autenticação. Permite pop-ups e tenta novamente.',
-                'auth/popup-closed-by-user': 'A janela de autenticação foi fechada antes de terminares o início de sessão.',
                 'auth/account-exists-with-different-credential': 'Já existe uma conta com este email. Entra primeiro pelo método original.'
             };
-            if (mensagem) mensagem.textContent = mensagens[erro.code] || erro.message || 'Não foi possível entrar com Google.';
+            if (mensagem) mensagem.textContent = mensagens[erro.code] || erro.message || `Não foi possível entrar com ${nomeFornecedor}.`;
             if (botao) botao.disabled = false;
         }
-    };
+    }
+
+    window.entrarComGoogle = () => entrarComFornecedor(api.loginGoogle, '.auth-google', 'Google');
+    window.entrarComGitHub = () => entrarComFornecedor(api.loginGitHub, '.auth-github', 'GitHub');
 
     window.submeterAuth = async (e, modo) => {
         e.preventDefault();

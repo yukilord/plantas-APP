@@ -67,6 +67,9 @@
     }
 
     async function carregarDadosFirebase(user) {
+        if (!user.email) {
+            throw new Error('A conta GitHub tem de disponibilizar um email para associar os teus dados.');
+        }
         const referencia = db.collection('users').doc(user.uid);
         const snapshot = await referencia.get();
         const dados = snapshot.exists ? snapshot.data() : {};
@@ -154,6 +157,18 @@
         try {
             const fornecedor = new firebase.auth.GoogleAuthProvider();
             fornecedor.setCustomParameters({ prompt: 'select_account' });
+            await auth.signInWithRedirect(fornecedor);
+            return null;
+        } finally {
+            operacaoAutenticacao = false;
+        }
+    }
+
+    async function loginGitHub() {
+        operacaoAutenticacao = true;
+        try {
+            const fornecedor = new firebase.auth.GithubAuthProvider();
+            fornecedor.addScope('user:email');
             await auth.signInWithRedirect(fornecedor);
             return null;
         } finally {
@@ -436,38 +451,40 @@
 
     const inicializacao = new Promise((resolve) => {
         let primeiraResposta = true;
-        auth.getRedirectResult().catch((erro) => {
-            window.dispatchEvent(new CustomEvent('firebase-auth-error', {
-                detail: erro && erro.message ? erro.message : 'Não foi possível concluir o início de sessão com Google.'
-            }));
-        });
-        auth.onAuthStateChanged(async (user) => {
-            try {
-                if (!user) {
-                    perfilAtual = null;
-                    uidCarregado = null;
+        const observarAutenticacao = () => {
+            auth.onAuthStateChanged(async (user) => {
+                try {
+                    if (!user) {
+                        perfilAtual = null;
+                        uidCarregado = null;
+                        localStorage.removeItem(SESSAO_KEY);
+                    }
+                    else if (!operacaoAutenticacao && user.uid !== uidCarregado) {
+                        await carregarDadosFirebase(user);
+                    }
+                } catch (erro) {
                     localStorage.removeItem(SESSAO_KEY);
+                    window.dispatchEvent(new CustomEvent('firebase-auth-error', {
+                        detail: erro && erro.message ? erro.message : 'Não foi possível carregar os dados da conta.'
+                    }));
+                } finally {
+                    if (primeiraResposta) {
+                        primeiraResposta = false;
+                        resolve();
+                    }
                 }
-                else if (!operacaoAutenticacao && user.uid !== uidCarregado) {
-                    await carregarDadosFirebase(user);
-                }
-            } catch (erro) {
-                localStorage.removeItem(SESSAO_KEY);
-                window.dispatchEvent(new CustomEvent('firebase-auth-error', {
-                    detail: erro && erro.message ? erro.message : 'Não foi possível carregar os dados da conta.'
-                }));
-            } finally {
+            }, (erro) => {
+                window.dispatchEvent(new CustomEvent('firebase-auth-error', { detail: erro.message }));
                 if (primeiraResposta) {
                     primeiraResposta = false;
                     resolve();
                 }
-            }
-        }, (erro) => {
+            });
+        };
+
+        auth.getRedirectResult().then(observarAutenticacao, (erro) => {
             window.dispatchEvent(new CustomEvent('firebase-auth-error', { detail: erro.message }));
-            if (primeiraResposta) {
-                primeiraResposta = false;
-                resolve();
-            }
+            observarAutenticacao();
         });
     });
 
@@ -475,7 +492,7 @@
         $, uid, hojeISO, adicionarDias, diasAte, esc, opt,
         NIVEIS, TIPOS,
         inicializar: () => inicializacao,
-        registar, login, loginGoogle, getSessao, logout, atualizarPerfil,
+        registar, login, loginGoogle, loginGitHub, getSessao, logout, atualizarPerfil,
         getCatalogo, getFoto, getColecao, adicionarAColecao, guardarPlanta,
         eliminarPlanta, marcarRega, reagendarRega, precisaRegaHoje, filtrarCatalogo, diagnosticar,
         getLembretes, adicionarLembrete, eliminarLembrete

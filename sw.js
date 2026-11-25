@@ -1,4 +1,4 @@
-const CACHE = 'herbanario-v19';
+const CACHE = 'herbanario-v22';
 
 const ASSETS = [
   './',
@@ -9,6 +9,7 @@ const ASSETS = [
   './css/main.css',
   './js/api.js',
   './assets/google-g-logo.png',
+  './assets/github-mark.png',
   './js/components/header.js',
   './js/components/feed.js',
   './js/app.js'
