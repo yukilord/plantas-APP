@@ -50,7 +50,7 @@ h1 { font-size: 32px; line-height: 1.1; margin: 4px 0 0; letter-spacing: -.01em;
 .grab { width: 44px; height: 5px; border-radius: 3px; background: var(--ln); margin: -8px auto 14px; }
 #vl { position: fixed; inset: 0; background: rgba(4, 22, 14, .5); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 35; }
 #vl.o { opacity: 1; pointer-events: auto; }
-#ts { position: fixed; left: 50%; bottom: 118px; transform: translate(-50%, 16px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 20px; font-size: 13.5px; font-weight: 700; opacity: 0; transition: .35s; z-index: 60; pointer-events: none; white-space: nowrap; }
+#ts { position: fixed; left: 50%; bottom: 118px; transform: translate(-50%, 16px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 20px; font-size: 13.5px; font-weight: 700; opacity: 0; transition: .35s; z-index: 60; pointer-events: none; width: max-content; max-width: calc(100vw - 32px); text-align: center; }
 #ts.show { opacity: 1; transform: translate(-50%, 0); }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 .error-panel {

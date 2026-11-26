@@ -9,6 +9,8 @@
     let ecra = 'hoje';
     let bloqueado = false;
     const F = { n: 'Todos' };
+    let mesOffset = 0;   // 0 = mês atual no calendário de regas
+    let diaSel = null;   // dia escolhido no calendário (ISO)
 
     document.addEventListener('DOMContentLoaded', () => {
         aplicarTema();
@@ -36,8 +38,41 @@
         $('sh').classList.add('o');
     };
 
-    function fecharPainel() { bloqueado = false; $('sh').classList.remove('o'); }
+    function fecharPainel() { bloqueado = false; acaoConfirmada = null; $('sh').classList.remove('o'); }
     window.fecharPainel = fecharPainel;
+
+    // Confirmação dentro da app: o confirm() do browser é bloqueado em alguns
+    // browsers e apps instaladas, e aí devolve "Cancelar" sem mostrar nada.
+    let acaoConfirmada = null;
+    function confirmar(titulo, texto, rotuloBotao, acao) {
+        painel(`<h2 class="sn">${titulo}</h2><p class="dc">${texto}</p>
+            <button class="big d" id="confirmar-acao" onclick="executarConfirmacao()">${rotuloBotao}</button>
+            <button class="big s" onclick="fecharPainel()">Cancelar</button>`);
+        acaoConfirmada = acao;
+    }
+    window.executarConfirmacao = () => {
+        const acao = acaoConfirmada;
+        fecharPainel();
+        if (acao) acao();
+    };
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && $('sh').classList.contains('o') && !bloqueado) fecharPainel();
+    });
+
+    const MENSAGENS_AUTH = {
+        'auth/invalid-credential': 'Email ou palavra-passe incorretos.',
+        'auth/wrong-password': 'Email ou palavra-passe incorretos.',
+        'auth/user-not-found': 'Não existe nenhuma conta com este email.',
+        'auth/invalid-email': 'O email não é válido.',
+        'auth/email-already-in-use': 'Já existe uma conta com este email. Escolhe Entrar.',
+        'auth/weak-password': 'A palavra-passe tem de ter pelo menos 6 caracteres.',
+        'auth/too-many-requests': 'Demasiadas tentativas. Espera um pouco e tenta outra vez.',
+        'auth/network-request-failed': 'Sem ligação à internet. Verifica a ligação e tenta novamente.',
+        'auth/unauthorized-domain': 'Este domínio não está autorizado nas definições do Firebase Authentication.',
+        'auth/account-exists-with-different-credential': 'Já existe uma conta com este email. Entra primeiro pelo método original.'
+    };
+    const mensagemAuth = (erro, alternativa) => MENSAGENS_AUTH[erro && erro.code] || (erro && erro.message) || alternativa;
 
     let temporizador;
     function mostrarToast(txt) {
@@ -107,13 +142,10 @@
                 if (botao) botao.disabled = false;
                 return;
             }
-            const mensagens = {
-                'auth/operation-not-allowed': `O início de sessão com ${nomeFornecedor} ainda não está ativado no Firebase.`,
-                'auth/unauthorized-domain': 'Este domínio não está autorizado nas definições do Firebase Authentication.',
-                'auth/account-exists-with-different-credential': 'Já existe uma conta com este email. Entra primeiro pelo método original.',
-                'auth/network-request-failed': 'Sem ligação à internet. Verifica a ligação e tenta novamente.'
-            };
-            if (mensagem) mensagem.textContent = mensagens[erro.code] || erro.message || `Não foi possível entrar com ${nomeFornecedor}.`;
+            const texto = erro && erro.code === 'auth/operation-not-allowed'
+                ? `O início de sessão com ${nomeFornecedor} ainda não está ativado no Firebase.`
+                : mensagemAuth(erro, `Não foi possível entrar com ${nomeFornecedor}.`);
+            if (mensagem) mensagem.textContent = texto;
             if (botao) botao.disabled = false;
         }
     }
@@ -135,7 +167,7 @@
             }
         } catch (erro) {
             const mensagem = $('ae');
-            if (mensagem) mensagem.textContent = erro.message || 'Não foi possível autenticar. Tenta novamente.';
+            if (mensagem) mensagem.textContent = mensagemAuth(erro, 'Não foi possível autenticar. Tenta novamente.');
             if (botao) botao.disabled = false;
             return;
         }
@@ -154,6 +186,7 @@
 
     window.navegar = (id) => {
         if (!utilizadorAtual) return;
+        if (id === 'lembretes' && ecra !== 'lembretes') { mesOffset = 0; diaSel = null; }
         ecra = id;
         fan(0);
         fecharPainel();
@@ -163,7 +196,9 @@
     };
 
     function desenhar() {
-        if (utilizadorAtual) $('v').innerHTML = ECRAS[ecra]();
+        if (!utilizadorAtual) return;
+        $('v').dataset.ecra = ecra;
+        $('v').innerHTML = ECRAS[ecra]();
     }
 
     window.filtrar = (chave, valor) => { F[chave] = valor; desenhar(); };
@@ -323,11 +358,11 @@
             const pc = l.length ? (l.length - pend.length) / l.length : 0;
             const h = new Date().getHours(), g = h < 6 || h >= 20 ? 'Boa noite' : h < 12 ? 'Bom dia' : 'Boa tarde';
             const data = new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
-            return `${cab(data, `${g},${esc(utilizadorAtual.nome)}`, `<button class="av" onclick="navegar('perfil')" aria-label="Perfil">${inicial()}</button>`) }
+            return `${cab(data, `${g}, ${esc(utilizadorAtual.nome)}`, `<button class="av" onclick="navegar('perfil')" aria-label="Perfil">${inicial()}</button>`) }
             <section class="hero"><div class="tx"><span class="bd">${f ? 'Rega de hoje' : 'Jardim em dia'}</span>
                 <h3>${!l.length ? 'Começa o teu jardim' : f ? esc(f.p.nome) + (pend.length > 1 ? ` +${pend.length - 1}` : '') : 'Tudo regado'}</h3>
-                <p>${!l.length ? 'Adiciona a tua primeira planta.' : f ? (f.d < 0 ? `Atrasada ${-f.d} dia(s). ` : '') + 'Está com sede.' : `Próxima: ${esc(l[0].p.nome)},${l[0].t}.`}</p>
-                <div class="bt">${f ? `<button class="b w" onclick="regardestaque('${f.p.id}')">Reguei agora</button><button class="b g" onclick="reagendarDestaque('${f.p.id}')">+1 dia</button>` : !l.length ? `<button class="b w" onclick="navegar('descobrir')">Descobrir plantas</button>` : ''}</div></div>
+                <p>${!l.length ? 'Adiciona a tua primeira planta.' : f ? (f.d < 0 ? `Atrasada ${-f.d} dia(s). ` : '') + 'Está com sede.' : `Próxima: ${esc(l[0].p.nome)}, ${l[0].t}.`}</p>
+                <div class="bt">${f ? `<button class="b w" onclick="regardestaque('${f.p.id}')">Reguei agora</button><button class="b g" onclick="reagendarDestaque('${f.p.id}')">+1 dia</button>${pend.length > 1 ? `<button class="b g" onclick="regarTodas()">Regar todas (${pend.length})</button>` : ''}` : !l.length ? `<button class="b w" onclick="navegar('descobrir')">Descobrir plantas</button>` : ''}</div></div>
                 <svg class="ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="8"/><circle cx="40" cy="40" r="34" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="${213.6 * (1 - pc)}" transform="rotate(-90 40 40)"/><text x="40" y="45" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">${Math.round(pc * 100)}%</text></svg>
             </section>
             <div class="sec"><h2>A tua coleção</h2><a onclick="navegar('colecao')">Ver tudo</a></div>
@@ -414,16 +449,81 @@
 
         lembretes() {
             const l = minhas();
-            const semana = [0, 1, 2, 3, 4, 5, 6].map((i) => {
-                const dt = new Date(Date.now() + i * 864e5);
-                const n = l.filter((x) => (i === 0 ? x.d <= 0 : x.d === i)).length;
-                return `<div class="dy ${n ? 'on' : ''}">${dt.toLocaleDateString('pt-PT', { weekday: 'short' }).replace('.', '')}<b>${n || dt.getDate()}</b></div>`;
-            }).join('');
-            return cab('Gestão de cuidados', 'Lembretes de rega') + `<div class="wk">${semana}</div>` +
-                (l.map((x) => `<div class="it" onclick="abrirPlanta('${x.p.id}')">${visual(x.p, 'eb')}
-                    <div class="in"><b>${esc(x.p.nome)}</b><small>A cada ${x.p.intervaloRega} dias</small></div>
+            const pend = l.filter((x) => x.d <= 0);
+            const hoje = api.hojeISO();
+
+            const base = new Date();
+            base.setDate(1);
+            base.setMonth(base.getMonth() + mesOffset);
+            const ano = base.getFullYear(), mes = base.getMonth();
+            const total = new Date(ano, mes + 1, 0).getDate();
+            const inicio = isoDe(ano, mes, 1), fim = isoDe(ano, mes, total);
+            const mapa = mapaRegas(l.map((x) => x.p), inicio, fim);
+            const sel = diaSel && diaSel >= inicio && diaSel <= fim ? diaSel : (hoje >= inicio && hoje <= fim ? hoje : inicio);
+
+            const tituloMes = base.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+            const semana = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((d) => `<div class="cal-wd">${d}</div>`).join('');
+            let celulas = '<div></div>'.repeat((new Date(ano, mes, 1).getDay() + 6) % 7);
+            let previstasMes = 0, feitasMes = 0;
+            for (let dia = 1; dia <= total; dia++) {
+                const iso = isoDe(ano, mes, dia);
+                const info = mapa[iso] || { prev: [], feitas: [] };
+                previstasMes += info.prev.length;
+                feitasMes += info.feitas.length;
+                const pontos = [
+                    ...info.feitas.map(() => '<i class="ok"></i>'),
+                    ...info.prev.map((p) => `<i style="--h:${p.hue ?? 140}"></i>`)
+                ];
+                const extra = pontos.length > 4 ? `<em>+${pontos.length - 3}</em>` : '';
+                const classes = [
+                    iso < hoje ? 'passado' : '',
+                    iso === hoje ? 'hoje' : '',
+                    iso === hoje && pend.length ? 'atraso' : '',
+                    iso === sel ? 'sel' : ''
+                ].join(' ');
+                const rotulo = `${dia}: ${info.prev.length} rega(s) prevista(s), ${info.feitas.length} feita(s)`;
+                celulas += `<button class="cd ${classes}" aria-label="${rotulo}" aria-pressed="${iso === sel}" onclick="selecionarDia('${iso}')"><span>${dia}</span><b class="pts">${(extra ? pontos.slice(0, 3) : pontos).join('')}${extra}</b></button>`;
+            }
+
+            const info = mapa[sel] || { prev: [], feitas: [] };
+            const estadoDe = (p) => l.find((x) => x.p.id === p.id);
+            const linha = (p, pill, botao = '') => `<div class="it" onclick="abrirPlanta('${p.id}')">${visual(p, 'eb')}
+                <div class="in"><b>${esc(p.nome)}</b><small>A cada ${p.intervaloRega || 7} dias</small></div>${pill}${botao}</div>`;
+            const itensDia = [
+                ...info.prev.map((p) => sel === hoje
+                    ? linha(p, `<em class="pill due">${estadoDe(p).t}</em>`, `<button class="wb" onclick="event.stopPropagation();regar('${p.id}')">Regar</button>`)
+                    : linha(p, '<em class="pill">Prevista</em>')),
+                ...info.feitas.map((p) => linha(p, '<em class="pill ok">✓ Regada</em>'))
+            ].join('') || `<div class="em0 pq">${sel < hoje ? 'Sem regas registadas neste dia.' : 'Nenhuma rega prevista neste dia.'}</div>`;
+
+            const todas = l.map((x) => `<div class="it" onclick="abrirPlanta('${x.p.id}')">${visual(x.p, 'eb')}
+                    <div class="in"><b>${esc(x.p.nome)}</b><small>A cada ${x.p.intervaloRega} dias · Última: ${ultimaRega(x.p)}</small></div>
                     <em class="pill ${x.d <= 0 ? 'due' : ''}">${x.t}</em>
-                    <button class="wb" aria-label="Regar" onclick="event.stopPropagation();regar('${x.p.id}')">Regar</button></div>`).join('') || vazio);
+                    <button class="wb" aria-label="Regar ${esc(x.p.nome)}" onclick="event.stopPropagation();regar('${x.p.id}')">Regar</button></div>`).join('');
+
+            return cab('Calendário de regas', 'Regas', pend.length > 1 ? `<button class="mini" style="margin-top:8px;padding:10px 14px" onclick="regarTodas()">Regar todas (${pend.length})</button>` : '') +
+                (!l.length ? vazio : `<div class="regas-layout">
+                <section class="cal" aria-label="Calendário de ${tituloMes}">
+                    <div class="cal-top">
+                        <h2>${tituloMes}</h2>
+                        <div class="cal-nav">
+                            <button onclick="mudarMes(-1)" aria-label="Mês anterior">‹</button>
+                            ${mesOffset ? '<button class="cal-hoje" onclick="mudarMes(0)">Hoje</button>' : ''}
+                            <button onclick="mudarMes(1)" aria-label="Mês seguinte">›</button>
+                        </div>
+                    </div>
+                    <div class="cal-grid">${semana}${celulas}</div>
+                    <div class="cal-leg"><span><i class="pv"></i>Rega prevista</span><span><i class="ok"></i>Rega feita</span><span><b>${previstasMes}</b> previstas · <b>${feitasMes}</b> feitas</span></div>
+                </section>
+                <div>
+                    <section class="dia">
+                        <div class="sec"><h2>${dataLonga(sel)}</h2><span class="k">${info.prev.length + info.feitas.length} rega(s)</span></div>
+                        ${itensDia}
+                    </section>
+                    <div class="sec"><h2>Todas as plantas</h2></div>
+                    ${todas}
+                </div>
+            </div>`);
         },
 
         perfil() {
@@ -462,6 +562,69 @@
         try { navigator.vibrate(30); } catch (e) {}
         desenhar();
     };
+    window.regarTodas = () => {
+        const ids = minhas().filter((x) => x.d <= 0).map((x) => x.p.id);
+        if (!ids.length) return;
+        api.marcarRega(utilizadorAtual.email, ids);
+        mostrarToast(`${ids.length} plantas regadas`);
+        try { navigator.vibrate(30); } catch (e) {}
+        desenhar();
+    };
+
+    // ----- Calendário mensal de regas -----
+    const dois = (n) => String(n).padStart(2, '0');
+    const isoDe = (ano, mes, dia) => `${ano}-${dois(mes + 1)}-${dois(dia)}`;
+
+    function dataLonga(iso) {
+        const [a, m, d] = iso.split('-').map(Number);
+        const texto = new Date(a, m - 1, d).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+        return texto.charAt(0).toUpperCase() + texto.slice(1);
+    }
+
+    function ultimaRega(p) {
+        const ultima = (p.historicoRegas || []).slice(-1)[0];
+        if (!ultima) return 'sem registo';
+        const dias = -diasAte(ultima);
+        return dias <= 0 ? 'hoje' : dias === 1 ? 'ontem' : `há ${dias} dias`;
+    }
+
+    // Datas previstas: começa na próxima rega (ou hoje, se estiver atrasada) e repete pelo intervalo.
+    function regasPrevistas(p, inicio, fim) {
+        const hoje = api.hojeISO();
+        const intervalo = Math.max(1, parseInt(p.intervaloRega) || 7);
+        let d = p.proximaRega && p.proximaRega > hoje ? p.proximaRega : hoje;
+        const datas = [];
+        while (d <= fim) {
+            if (d >= inicio) datas.push(d);
+            d = api.adicionarDias(d, intervalo);
+        }
+        return datas;
+    }
+
+    function mapaRegas(plantas, inicio, fim) {
+        const mapa = {};
+        const juntar = (iso, tipo, p) => {
+            if (!mapa[iso]) mapa[iso] = { prev: [], feitas: [] };
+            mapa[iso][tipo].push(p);
+        };
+        plantas.forEach((p) => {
+            (p.historicoRegas || []).forEach((d) => { if (d >= inicio && d <= fim) juntar(d, 'feitas', p); });
+            regasPrevistas(p, inicio, fim).forEach((d) => juntar(d, 'prev', p));
+        });
+        return mapa;
+    }
+
+    window.mudarMes = (passo) => {
+        mesOffset = passo === 0 ? 0 : mesOffset + passo;
+        diaSel = null;
+        desenhar();
+    };
+    window.selecionarDia = (iso) => {
+        diaSel = iso;
+        desenhar();
+        const dia = document.querySelector('.dia');
+        if (dia && window.innerWidth < 900) dia.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
     window.regardestaque = (id) => window.regar(id);
     window.reagendarDestaque = (id) => {
         api.reagendarRega(utilizadorAtual.email, id);
@@ -478,10 +641,11 @@
     };
 
     window.apagarLembrete = (id) => {
-        if (!confirm('Apagar este lembrete?')) return;
-        api.eliminarLembrete(utilizadorAtual.email, id);
-        mostrarToast('Lembrete apagado');
-        desenhar();
+        confirmar('Apagar lembrete?', 'Este lembrete vai ser apagado de todos os teus dispositivos.', 'Apagar lembrete', () => {
+            api.eliminarLembrete(utilizadorAtual.email, id);
+            mostrarToast('Lembrete apagado');
+            desenhar();
+        });
     };
 
     const factos = (p, extra) => `<div class="ft"><div>Rega<b>A cada ${p.intervaloRega} dias</b></div><div>Luz<b>${esc(p.luz || '—')}</b></div><div>Tipo<b>${TIPOS[p.tipo] || '—'}</b></div>${extra}</div>`;
@@ -491,13 +655,17 @@
         const p = api.getCatalogo().find((x) => x.id === id);
         if (!p) return;
         painel(`${topo(p)}${factos(p, '')}<section class="info-planta"><span class="k">Guia de cultivo</span><p>${esc(p.detalhes || p.dicas)}</p><p><b>Dica:</b> ${esc(p.dicas)}</p></section>
-        <button class="big" onclick="adicionarComprar('${id}');fecharPainel()">＋ Adicionar à coleção</button>
+        ${jaTem(id)
+            ? '<button class="big" disabled>✓ Já está na tua coleção</button>'
+            : `<button class="big" onclick="adicionarComprar('${id}');fecharPainel()">＋ Adicionar à coleção</button>`}
         <button class="big s" onclick="fecharPainel()">Fechar</button>`);
     };
 
     window.abrirPlanta = (id) => {
-        const p = daColecao(id), s = estado(p);
-        painel(`${topo(p)}${factos(p, `<div>Próxima rega<b>${s.t}</b></div>`)}<section class="info-planta"><span class="k">Guia de cultivo</span><p>${esc(p.detalhes || p.dicas || 'Ainda sem guia de cultivo. Podes acrescentar dicas ao editar a planta.')}</p>${p.dicas ? `<p><b>Dica:</b> ${esc(p.dicas)}</p>` : ''}</section>
+        const p = daColecao(id);
+        if (!p) return;
+        const s = estado(p);
+        painel(`${topo(p)}${factos(p, `<div>Próxima rega<b>${s.t}</b></div><div>Última rega<b>${ultimaRega(p)}</b></div>`)}<section class="info-planta"><span class="k">Guia de cultivo</span><p>${esc(p.detalhes || p.dicas || 'Ainda sem guia de cultivo. Podes acrescentar dicas ao editar a planta.')}</p>${p.dicas ? `<p><b>Dica:</b> ${esc(p.dicas)}</p>` : ''}</section>
         <button class="big" onclick="regar('${id}');fecharPainel()">Reguei agora</button>
         <button class="big s" onclick="editarPlanta('${id}')">Editar</button>
         <button class="big d" onclick="removerPlanta('${id}')">Remover da coleção</button>`);
@@ -505,18 +673,20 @@
 
     window.adicionarComprar = (id) => {
         const especie = api.getCatalogo().find((p) => p.id === id);
-        if (!especie) return;
+        if (!especie || jaTem(id)) return;
         api.adicionarAColecao(utilizadorAtual.email, especie);
         mostrarToast(`${especie.nome} adicionada à coleção`);
         desenhar();
     };
 
     window.removerPlanta = (id) => {
-        if (!confirm('Remover esta planta da coleção?')) return;
-        api.eliminarPlanta(utilizadorAtual.email, id);
-        fecharPainel();
-        mostrarToast('Planta removida');
-        desenhar();
+        const p = daColecao(id);
+        if (!p) return;
+        confirmar('Remover da coleção?', `${esc(p.nome)}, a fotografia e o histórico de regas vão ser removidos da tua coleção.`, 'Remover da coleção', () => {
+            api.eliminarPlanta(utilizadorAtual.email, id);
+            mostrarToast(`${p.nome} removida da coleção`);
+            desenhar();
+        });
     };
 
     let imagemSelecionada = null;
@@ -536,7 +706,8 @@
                 URL.revokeObjectURL(url);
                 try {
                     if (!imagem.width || !imagem.height) throw new Error('A imagem não tem dimensões válidas.');
-                    const escala = Math.min(1, 1200 / Math.max(imagem.width, imagem.height));
+                    // 900px e qualidade 0,78 deixam a foto com ~100-200 KB, dentro do limite do Firestore.
+                    const escala = Math.min(1, 900 / Math.max(imagem.width, imagem.height));
                     const canvas = document.createElement('canvas');
                     canvas.width = Math.round(imagem.width * escala);
                     canvas.height = Math.round(imagem.height * escala);
@@ -545,7 +716,7 @@
                     contexto.fillStyle = '#fff';
                     contexto.fillRect(0, 0, canvas.width, canvas.height);
                     contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.82));
+                    resolve(canvas.toDataURL('image/jpeg', 0.78));
                 } catch (e) {
                     reject(e);
                 }
@@ -604,8 +775,9 @@
         const erro = $('planta-erro');
         botao.disabled = true;
         erro.textContent = '';
+        const anterior = id ? daColecao(id) : null;
         const planta = {
-            ...(id ? daColecao(id) : {}),
+            ...(anterior || {}),
             id: id || undefined,
             nome,
             cientifico: $('n3').value.trim() || '—',
@@ -614,6 +786,13 @@
             intervaloRega: Math.max(1, parseInt($('n6').value) || 7),
             dicas: $('n7').value.trim()
         };
+        // Se o intervalo mudou, a próxima rega passa a contar a partir da última rega.
+        if (anterior && +anterior.intervaloRega !== planta.intervaloRega) {
+            const hoje = api.hojeISO();
+            const ultima = (anterior.historicoRegas || []).slice(-1)[0] || hoje;
+            const proxima = api.adicionarDias(ultima, planta.intervaloRega);
+            planta.proximaRega = proxima < hoje ? hoje : proxima;
+        }
         try {
             if (imagemSelecionada) planta.foto = await imagemSelecionada;
             if (!$('guardar-planta')) return;

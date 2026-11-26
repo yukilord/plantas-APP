@@ -12,7 +12,6 @@
     firebase.initializeApp(firebaseConfig);
     window.firebaseServices = {
         auth: firebase.auth(),
-        db: firebase.firestore(),
-        storage: firebase.storage()
+        db: firebase.firestore()
     };
 })();

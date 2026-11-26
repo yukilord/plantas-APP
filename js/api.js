@@ -24,7 +24,13 @@
             .join('');
 
     const SESSAO_KEY = 'herbanario_sessao';
-    const { auth, db, storage } = window.firebaseServices;
+    const { auth, db } = window.firebaseServices;
+    // As fotos carregadas pelo utilizador ficam em users/{uid}/fotos/{idPlanta} no Firestore
+    // (o Storage exige o plano pago). No documento principal a planta guarda só esta marca.
+    const MARCA_FOTO = 'firestore:';
+    const LIMITE_FOTO = 900000;
+    const fotosEnviadas = new Map();
+    const refFotos = (uidUtilizador) => db.collection('users').doc(uidUtilizador).collection('fotos');
     let perfilAtual = null;
     let sincronizacao = Promise.resolve();
     let operacaoAutenticacao = false;
@@ -71,9 +77,23 @@
             throw new Error('A conta tem de disponibilizar um email para associar os teus dados.');
         }
         const referencia = db.collection('users').doc(user.uid);
-        const snapshot = await referencia.get();
+        let snapshot;
+        try {
+            snapshot = await referencia.get();
+        } catch (erro) {
+            // Sem internet: continua com os dados guardados neste dispositivo.
+            const sessao = getSessao();
+            const semRede = !navigator.onLine || (erro && erro.code === 'unavailable');
+            if (semRede && sessao && sessao.email === user.email) {
+                abrirSessao(sessao);
+                uidCarregado = user.uid;
+                return getSessao();
+            }
+            throw erro;
+        }
         const dados = snapshot.exists ? snapshot.data() : {};
         const dadosLocais = recolherDadosLocais(user.email);
+        if (Array.isArray(dados.plantas)) dados.plantas = await restaurarFotos(user.uid, dados.plantas, dadosLocais.plantas);
         const perfil = dados.perfil || {
             nome: user.displayName || user.email.split('@')[0],
             email: user.email,
@@ -83,6 +103,9 @@
         guardarDadosLocais(user.email, snapshot.exists ? dados : dadosLocais);
         if (!snapshot.exists) {
             await referencia.set({ perfil, plantas: [], lembretes: [] });
+            agendarSincronizacao(user.email);
+        } else if ((dados.plantas || []).some((p) => typeof p.foto === 'string' && p.foto.startsWith('data:image/') && fotosEnviadas.get(p.id) !== p.foto)) {
+            // Há fotos que só existem neste dispositivo: tenta enviá-las outra vez.
             agendarSincronizacao(user.email);
         }
         uidCarregado = user.uid;
@@ -95,6 +118,38 @@
         }));
     }
 
+    // Junta às plantas vindas da nuvem as fotos guardadas na subcoleção "fotos".
+    // Se uma foto não estiver na nuvem (envio falhado), usa a cópia local, que volta a
+    // ser enviada na próxima sincronização. Sem nenhuma das duas, a marca fica e a app
+    // mostra a foto do catálogo (quando existe).
+    async function restaurarFotos(uidUtilizador, plantas, locais = []) {
+        if (!plantas.some((p) => typeof p.foto === 'string' && p.foto.startsWith(MARCA_FOTO))) return plantas;
+        const fotos = {};
+        locais.forEach((p) => {
+            if (typeof p.foto === 'string' && p.foto.startsWith('data:image/')) fotos[p.id] = p.foto;
+        });
+        const vindasDaNuvem = new Set();
+        try {
+            const resultado = await refFotos(uidUtilizador).get();
+            resultado.forEach((doc) => {
+                if (typeof doc.data().dados !== 'string') return;
+                fotos[doc.id] = doc.data().dados;
+                vindasDaNuvem.add(doc.id);
+            });
+        } catch (erro) {
+            console.error('Não foi possível carregar as fotografias.', erro);
+            notificarErroSincronizacao(erro);
+        }
+        return plantas.map((p) => {
+            if (typeof p.foto !== 'string' || !p.foto.startsWith(MARCA_FOTO)) return p;
+            const id = p.foto.slice(MARCA_FOTO.length);
+            const foto = fotos[id];
+            if (!foto) return p;
+            if (vindasDaNuvem.has(id)) fotosEnviadas.set(p.id, foto);
+            return { ...p, foto };
+        });
+    }
+
     function agendarSincronizacao(email) {
         const user = auth.currentUser;
         if (!user || user.email.toLowerCase() !== email.toLowerCase()) return;
@@ -103,12 +158,21 @@
         const perfil = { ...perfilAtual };
         sincronizacao = sincronizacao.then(async () => {
             if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+            let erroFoto = null;
+            // Cada foto nova vai para o seu próprio documento; uma foto que falhe
+            // não impede que o resto dos dados seja guardado.
             const plantas = await Promise.all(dados.plantas.map(async (planta) => {
                 if (!planta.foto || !planta.foto.startsWith('data:image/')) return planta;
-                const caminho = `users/${user.uid}/plants/${planta.id}.jpg`;
-                const ficheiro = storage.ref(caminho);
-                await ficheiro.putString(planta.foto, 'data_url', { contentType: 'image/jpeg' });
-                return { ...planta, foto: await ficheiro.getDownloadURL() };
+                if (fotosEnviadas.get(planta.id) !== planta.foto) {
+                    try {
+                        if (planta.foto.length > LIMITE_FOTO) throw new Error(`A fotografia de ${planta.nome} é demasiado grande.`);
+                        await refFotos(user.uid).doc(planta.id).set({ dados: planta.foto });
+                        fotosEnviadas.set(planta.id, planta.foto);
+                    } catch (erro) {
+                        erroFoto = erro;
+                    }
+                }
+                return { ...planta, foto: MARCA_FOTO + planta.id };
             }));
             if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
             await db.collection('users').doc(user.uid).set({
@@ -116,14 +180,7 @@
                 plantas,
                 lembretes: dados.lembretes
             }, { merge: true });
-            const atual = recolherDadosLocais(email);
-            guardarDadosLocais(email, {
-                plantas: atual.plantas.map((planta) => {
-                    const sincronizada = plantas.find((item) => item.id === planta.id);
-                    return sincronizada ? { ...planta, foto: sincronizada.foto } : planta;
-                }),
-                lembretes: atual.lembretes
-            });
+            if (erroFoto) throw erroFoto;
         }).catch((erro) => {
             notificarErroSincronizacao(erro);
         });
@@ -299,7 +356,8 @@
 
     function getFoto(planta) {
         const especie = planta.especieId && CATALOGO.find((p) => p.id === planta.especieId);
-        return planta.foto || (especie ? especie.foto : '');
+        const propria = typeof planta.foto === 'string' && !planta.foto.startsWith(MARCA_FOTO) ? planta.foto : '';
+        return propria || (especie ? especie.foto : '');
     }
 
     function colecaoTodos() {
@@ -377,13 +435,27 @@
     }
 
     function eliminarPlanta(email, id) {
+        const planta = getColecao(email).find((p) => p.id === id);
         gravarColecao(email, getColecao(email).filter((p) => p.id !== id));
+        const user = auth.currentUser;
+        const temFoto = planta && typeof planta.foto === 'string'
+            && (planta.foto.startsWith('data:image/') || planta.foto.startsWith(MARCA_FOTO));
+        if (user && temFoto) {
+            fotosEnviadas.delete(id);
+            refFotos(user.uid).doc(id).delete().catch((erro) => console.error('Não foi possível apagar a fotografia.', erro));
+        }
     }
 
-    function marcarRega(email, id) {
+    // Aceita um id ou uma lista de ids; guarda também o histórico de regas
+    // (últimas 120 datas) para o calendário mensal e a "última rega".
+    function marcarRega(email, ids) {
+        const alvo = new Set([].concat(ids));
+        const hoje = hojeISO();
         const lista = getColecao(email).map((p) => {
-            if (p.id !== id) return p;
-            return { ...p, proximaRega: adicionarDias(hojeISO(), p.intervaloRega || 7) };
+            if (!alvo.has(p.id)) return p;
+            const historico = (Array.isArray(p.historicoRegas) ? p.historicoRegas : []).filter((d) => d !== hoje);
+            historico.push(hoje);
+            return { ...p, proximaRega: adicionarDias(hoje, p.intervaloRega || 7), historicoRegas: historico.slice(-120) };
         });
         gravarColecao(email, lista);
     }
