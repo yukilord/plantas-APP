@@ -1,4 +1,4 @@
-const CACHE = 'herbanario-v27';
+const CACHE = 'herbanario-v28';
 
 const ASSETS = [
   './',
