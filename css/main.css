@@ -3,9 +3,10 @@
 .k { display: inline-block; font-size: 13px; color: var(--pr2); font-weight: 700; }
 .k::first-letter { text-transform: uppercase; }
 .av { flex: none; width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--ac); color: #fff; font: 400 19px "Young Serif", serif; }
-.b { border: 0; border-radius: 16px; padding: 10px 14px; font-weight: 700; font-size: 13px; }
+.b { border: 0; border-radius: 16px; padding: 10px 14px; font-weight: 700; font-size: 13px; white-space: nowrap; }
 .b.w { background: #fff; color: #0b4535; }
-.b.g { background: rgba(255, 255, 255, .2); color: #fff; }
+/* .b.g partilha o nome com a grelha .g; repõe o aspeto de botão em todos os ecrãs. */
+.hero .b.g, .hero .b.g:only-child { display: inline-block; grid-template-columns: none; gap: 0; background: rgba(255, 255, 255, .2); color: #fff; }
 .big { display: block; width: 100%; border: 0; border-radius: 18px; padding: 15px; font-weight: 700; font-size: 15px; background: var(--pr); color: var(--on); margin-top: 8px; }
 .big.s { background: var(--bg); color: var(--ink); }
 .big.d { background: rgba(224, 69, 123, .14); color: var(--ac); }
@@ -164,11 +165,11 @@
 .fi { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 1px solid var(--ln); background: var(--sf); color: var(--pr); display: grid; place-items: center; box-shadow: var(--sh); transform: scale(.3); opacity: 0; pointer-events: none; transition: transform .5s cubic-bezier(.3, 1.5, .5, 1), opacity .25s; transition-delay: calc(var(--k) * 55ms); }
 .fan.o .fi { transform: translate(var(--x), var(--y)); opacity: 1; pointer-events: auto; }
 .fi span { position: absolute; top: 66px; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
-.dock > .dk, .dk-t { display: none; }
+/* ===== Ecrãs maiores: o mesmo design do telemóvel, mais largo =====
+   O menu de baixo, o botão + com a roda e os painéis que sobem de baixo
+   ficam iguais; só o conteúdo ganha largura e mais colunas. */
 
-/* ===== Adaptação a ecrãs maiores ===== */
-
-/* Telemóveis grandes e tablets */
+/* Tablets */
 @media (min-width: 600px) {
     .app { max-width: 760px; padding-left: 28px; padding-right: 28px; }
     .g { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
@@ -179,56 +180,18 @@
     .cd { min-height: 60px; }
 }
 
-/* Painéis como janela centrada em vez de folha inferior */
-@media (min-width: 700px) {
-    #sh { align-items: center; padding: 24px; }
-    .pn { width: min(560px, 100%); border-radius: 30px; max-height: 88vh; padding: 26px 26px 24px; opacity: 0; transform: translateY(24px) scale(.98); transition: transform .35s cubic-bezier(.2, .9, .3, 1), opacity .25s; box-shadow: 0 30px 80px rgba(4, 22, 14, .35); }
-    .o .pn { opacity: 1; transform: none; }
-    .grab { display: none; }
-}
-
-/* Computador: menu lateral fixo e conteúdo largo */
+/* Computador */
 @media (min-width: 900px) {
-    .app { max-width: none; margin: 0 0 0 256px; padding: 40px 48px 64px; }
-    #v { max-width: 1120px; margin: 0 auto; }
-    #v[data-ecra="perfil"], #v[data-ecra="diagnostico"], #v[data-ecra="cartao"], #v[data-ecra="lembretes-pessoais"] { max-width: 760px; }
-    h1 { font-size: 38px; }
-    .hs { margin: 0 -8px; padding: 4px 8px 16px; scrollbar-width: thin; }
-    .hs .card { width: 170px; }
-    .chips { margin: 18px 0; padding: 0; flex-wrap: wrap; }
-    .g { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
-    .art { height: 132px; }
-    .hero { padding: 30px 34px; }
-    .hero h3 { font-size: 30px; }
-    .ring { width: 112px; }
-    #ts { bottom: 32px; left: calc(50% + 128px); }
-
-    .dock { left: 16px; top: 16px; bottom: 16px; transform: none; width: 224px; height: auto; border-radius: 28px; display: flex; flex-direction: column; gap: 2px; padding: 22px 12px 14px; overflow-y: auto; }
-    .dock::before { content: "Herbanário"; order: -2; padding: 0 12px 18px; font: 400 25px "Young Serif", Georgia, serif; color: var(--pr); }
-    .dock > button { flex: none; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 11px 14px; border-radius: 16px; font-size: 14px; font-weight: 600; color: var(--mu); transition: background .2s, color .2s; }
-    .dock > button:hover { background: var(--bg); color: var(--ink); }
-    .dock > button.on { background: var(--pr); color: var(--on); }
-    .dock > button.on span { position: static; opacity: 1; }
-    .dock > button.on svg { transform: none; }
-    .dock svg { width: 21px; height: 21px; flex: none; }
-    .ind, .fan { display: none; }
-    #vl { display: none; }
-    .dock > .dk { display: flex; }
-    .dock > .dk-sep { display: block; height: 1px; margin: 10px 12px; background: var(--ln); }
-    .dock > .fim { margin-top: auto; }
-    .fab { order: -1; margin-bottom: 14px; background: var(--ac) !important; color: #fff !important; box-shadow: 0 8px 20px rgba(224, 69, 123, .35); }
-    .fab:hover { filter: brightness(1.06); }
-    .fab i { position: static; width: auto; height: auto; border: 0; background: none; box-shadow: none; display: grid; }
-    .fab svg { width: 21px; height: 21px; }
-    .fab.o i { transform: none; }
-    .dk-t { display: inline; }
-
-    .regas-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
-    .regas-layout .cal { position: sticky; top: 24px; padding: 20px 18px 16px; }
+    .app { max-width: 1160px; padding: 32px 40px 150px; }
+    #v[data-ecra="perfil"], #v[data-ecra="diagnostico"], #v[data-ecra="cartao"], #v[data-ecra="lembretes-pessoais"] { max-width: 720px; margin: 0 auto; }
+    .hs { margin: 0 -40px; padding: 4px 40px 16px; }
+    .hs .card { width: 168px; }
+    .chips { margin: 16px -40px; padding: 0 40px; }
+    .g { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .pn { width: min(560px, 100%); }
+    .regas-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
     .regas-layout .dia > .sec:first-child { margin-top: 18px; }
-    .cd { min-height: 76px; padding-top: 8px; }
-    .cd > span { width: 32px; height: 32px; font-size: 14px; }
-    .pts i { width: 8px; height: 8px; }
+    .cd { min-height: 64px; }
 }
 
 @media (hover: hover) {
